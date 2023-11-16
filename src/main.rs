@@ -4,6 +4,7 @@ use bevy::{
     render::render_resource::{Extent3d, TextureFormat},
     window::PrimaryWindow,
 };
+use bevy_pancam::{PanCam, PanCamPlugin};
 use bevy_rapier2d::prelude::*;
 use rand;
 
@@ -19,11 +20,12 @@ fn main() {
             primary_window: Some(Window {
                 resizable: true,
                 title: "New New Simulo Alpha 2".to_string(),
-                mode: bevy::window::WindowMode::BorderlessFullscreen,
+                mode: bevy::window::WindowMode::Windowed,
                 ..Default::default()
             }),
             ..Default::default()
         }))
+        .add_plugins(PanCamPlugin::default())
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(12.0))
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(LogDiagnosticsPlugin::default())
@@ -34,13 +36,15 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn((
-        Camera2dBundle {
-            camera: Camera { ..default() },
-            ..default()
-        },
-        MainCamera,
-    ));
+    commands
+        .spawn((
+            Camera2dBundle {
+                camera: Camera { ..default() },
+                ..default()
+            },
+            MainCamera,
+        ))
+        .insert(PanCam::default());
 
     /* Create the ground. */
     commands
@@ -85,15 +89,6 @@ fn keyboard_input(
         &Camera,
         _,
     ) = camera_query.single_mut();
-
-    // + to zoom in
-    if keys.pressed(KeyCode::Equals) {
-        camera.1.scale *= 1.01;
-    }
-    // - to zoom out
-    if keys.pressed(KeyCode::Minus) {
-        camera.1.scale /= 1.01;
-    }
 
     // check if the cursor is inside the window and get its position
     // then, ask bevy to convert into world coordinates, and truncate to discard Z
