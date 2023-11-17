@@ -3,9 +3,11 @@ use bevy::window::PresentMode;
 use bevy::{
     prelude::*,
     render::render_resource::{Extent3d, TextureFormat},
+    sprite::MaterialMesh2dBundle,
     window::PrimaryWindow,
 };
 use bevy_pancam::{PanCam, PanCamPlugin};
+use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 use rand;
 
@@ -17,6 +19,7 @@ struct Player;
 
 fn main() {
     App::new()
+        .insert_resource(Msaa::Sample4)
         .insert_resource(ClearColor(Color::rgb(32. / 255., 28. / 255., 71. / 255.)))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -28,9 +31,10 @@ fn main() {
             }),
             ..Default::default()
         }))
+        .add_plugins(ShapePlugin)
         .add_plugins(PanCamPlugin::default())
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(12.0))
-        .add_plugins(RapierDebugRenderPlugin::default())
+        //.add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(LogDiagnosticsPlugin::default())
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
         .add_systems(Startup, setup)
@@ -53,16 +57,33 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 
     /* Create the ground. */
-    commands
-        .spawn(Collider::cuboid(500.0, 50.0))
-        .insert(TransformBundle::from(Transform::from_xyz(0.0, -100.0, 0.0)));
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: Color::rgb(0.67, 0.58, 0.99),
+                custom_size: Some(Vec2::new(1000.0, 100.0)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(0., -100., 0.)),
+            ..default()
+        },
+        Collider::cuboid(500.0, 50.0),
+    ));
 
     // 1000 rigidbody boxes stacked on Y axis
     for i in 0..50 {
         commands.spawn((
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::rgb(0.25, 0.25, 0.75),
+                    custom_size: Some(Vec2::new(4., 4.)),
+                    ..default()
+                },
+                transform: Transform::from_translation(Vec3::new(140., 1. + i as f32 * 4.1, 0.00)),
+                ..default()
+            },
             Collider::cuboid(2.0, 2.0),
             RigidBody::Dynamic,
-            TransformBundle::from(Transform::from_xyz(140.0, 1. + i as f32 * 4.1, 0.0)),
         ));
     }
 }
@@ -106,9 +127,22 @@ fn keyboard_input(
         if buttons.pressed(MouseButton::Left) {
             // Left button was pressed, lets spawn cube at mouse
             commands.spawn((
+                SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::rgb(0.25, 0.25, 0.75),
+                        custom_size: Some(Vec2::new(4., 4.)),
+                        ..default()
+                    },
+                    transform: Transform::from_translation(Vec3::new(
+                        world_position.x,
+                        world_position.y,
+                        0.00,
+                    )),
+                    ..default()
+                },
                 Collider::cuboid(2.0, 2.0),
                 RigidBody::Dynamic,
-                TransformBundle::from(Transform::from_xyz(world_position.x, world_position.y, 0.0)),
+                // TransformBundle::from(Transform::from_xyz(world_position.x, world_position.y, 0.0)),
             ));
         }
     }
