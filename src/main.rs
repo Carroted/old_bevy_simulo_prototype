@@ -17,6 +17,7 @@ struct Player;
 
 fn main() {
     App::new()
+        .insert_resource(ClearColor(Color::rgb(32. / 255., 28. / 255., 71. / 255.)))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 resizable: true,
