@@ -61,13 +61,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         SpriteBundle {
             sprite: Sprite {
                 color: Color::rgb(0.67, 0.58, 0.99),
-                custom_size: Some(Vec2::new(1000.0, 100.0)),
+                custom_size: Some(Vec2::new(10000.0, 1000.0)),
                 ..default()
             },
-            transform: Transform::from_translation(Vec3::new(0., -100., 0.)),
+            transform: Transform::from_translation(Vec3::new(0., -1000., 0.)),
             ..default()
         },
-        Collider::cuboid(500.0, 50.0),
+        Collider::cuboid(5000.0, 500.0),
     ));
 
     // 1000 rigidbody boxes stacked on Y axis
