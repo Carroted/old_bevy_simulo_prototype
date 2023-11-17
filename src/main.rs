@@ -1,4 +1,5 @@
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::window::PresentMode;
 use bevy::{
     prelude::*,
     render::render_resource::{Extent3d, TextureFormat},
@@ -21,6 +22,7 @@ fn main() {
                 resizable: true,
                 title: "New New Simulo Alpha 2".to_string(),
                 mode: bevy::window::WindowMode::Windowed,
+                present_mode: PresentMode::Immediate,
                 ..Default::default()
             }),
             ..Default::default()
@@ -44,7 +46,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
             MainCamera,
         ))
-        .insert(PanCam::default());
+        .insert(PanCam {
+            grab_buttons: vec![MouseButton::Right, MouseButton::Middle],
+            ..Default::default()
+        });
 
     /* Create the ground. */
     commands
