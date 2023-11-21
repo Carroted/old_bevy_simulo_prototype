@@ -1,4 +1,5 @@
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::ecs::schedule::ScheduleLabel;
 use bevy::window::PresentMode;
 use bevy::{
     prelude::*,
@@ -17,6 +18,16 @@ struct MainCamera;
 #[derive(Component)]
 struct Player;
 
+#[derive(Component)]
+struct Spring {
+    body_b: Entity,
+    local_anchor_a: Vec2,
+    local_anchor_b: Vec2,
+    stiffness: f32,
+    damping: f32,
+    target_len: f32,
+}
+
 fn main() {
     App::new()
         .insert_resource(Msaa::Sample4)
@@ -34,6 +45,7 @@ fn main() {
         .add_plugins(ShapePlugin)
         .add_plugins(PanCamPlugin::default())
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(12.0))
+        .add_systems(PostUpdate.intern(), simulate_springs)
         //.add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(LogDiagnosticsPlugin::default())
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
@@ -145,5 +157,19 @@ fn keyboard_input(
                 // TransformBundle::from(Transform::from_xyz(world_position.x, world_position.y, 0.0)),
             ));
         }
+    }
+}
+
+// springulizer
+fn simulate_springs(
+    // query all spring component and their rigidbody. each spring should have this on each side
+    mut spring_query: Query<(&Spring, &ExternalImpulse)>,
+    // commands omg
+    mut commands: Commands,
+) {
+    // iterate over all springs
+    for (spring, rigidbody_a_impulse) in spring_query.iter_mut() {
+        // get the other impulser of the spring
+        let rigidbody_b_impulse = spring.body_b.
     }
 }
