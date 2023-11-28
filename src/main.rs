@@ -187,7 +187,6 @@ fn keyboard_input(
 }
 
 fn simulate_springs(
-    // query all spring component and their rigidbody. each spring should have this on each side
     mut multibody_spring_query: Query<(&mut MultiBodySpring, &ExternalImpulse)>,
     mut world_spring_query: Query<(
         &mut WorldSpring,
@@ -197,8 +196,6 @@ fn simulate_springs(
         &mut ExternalImpulse,
     )>,
     mut other_impulse_query: Query<(&mut ExternalImpulse, Without<MultiBodySpring>)>,
-    // commands omg
-    mut commands: Commands,
     rapier_context: Res<RapierContext>,
 ) {
     // iterate over all springs
