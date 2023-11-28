@@ -10,6 +10,7 @@ use bevy::{
 use bevy_pancam::{PanCam, PanCamPlugin};
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
+use bevy_rapier2d::rapier::dynamics::{RigidBodyHandle, RigidBodySet};
 use rand;
 
 #[derive(Component)]
@@ -19,10 +20,18 @@ struct MainCamera;
 struct Player;
 
 #[derive(Component)]
-struct Spring {
-    body_b: Entity,
+struct MultiBodySpring {
+    body_b_rb: RigidBodyHandle,
     local_anchor_a: Vec2,
     local_anchor_b: Vec2,
+    stiffness: f32,
+    damping: f32,
+    target_len: f32,
+}
+
+struct WorldSpring {
+    local_anchor_a: Vec2,
+    world_anchor_b: Vec2,
     stiffness: f32,
     damping: f32,
     target_len: f32,
@@ -138,7 +147,7 @@ fn keyboard_input(
     {
         if buttons.pressed(MouseButton::Left) {
             // Left button was pressed, lets spawn cube at mouse
-            commands.spawn((
+            /*commands.spawn((
                 SpriteBundle {
                     sprite: Sprite {
                         color: Color::rgb(0.25, 0.25, 0.75),
@@ -154,22 +163,47 @@ fn keyboard_input(
                 },
                 Collider::cuboid(2.0, 2.0),
                 RigidBody::Dynamic,
-                // TransformBundle::from(Transform::from_xyz(world_position.x, world_position.y, 0.0)),
-            ));
+            ));*/
+            let solid = true;
+            let filter = QueryFilter::default();
+            if let Some((entity, projection)) =
+                rapier_context.project_point(world_position, solid, filter)
+            {
+                // The collider closest to the point has this `handle`.
+                println!(
+                    "Projected point on entity {:?}. Point projection: {}",
+                    entity, projection.point
+                );
+                println!(
+                    "Point was inside of the collider shape: {}",
+                    projection.is_inside
+                );
+            }
         }
     }
 }
 
-// springulizer
 fn simulate_springs(
     // query all spring component and their rigidbody. each spring should have this on each side
-    mut spring_query: Query<(&Spring, &ExternalImpulse)>,
+    mut multibody_spring_query: Query<(&mut MultiBodySpring, &ExternalImpulse)>,
+    mut world_spring_query: Query<(&mut WorldSpring, &ExternalImpulse)>,
+    mut other_impulse_query: Query<(&mut ExternalImpulse, Without<MultiBodySpring>)>,
     // commands omg
     mut commands: Commands,
+    rapier_context: Res<RapierContext>,
 ) {
     // iterate over all springs
-    for (spring, rigidbody_a_impulse) in spring_query.iter_mut() {
+    for (mut spring, rigidbody_a_impulse) in multibody_spring_query.iter_mut() {
         // get the other impulser of the spring
-        let rigidbody_b_impulse = spring.body_b.
+        let entity = rapier_context.rigid_body_entity(spring.body_b_rb).unwrap();
+        let mut rigidbody_b_stuff = other_impulse_query.get_mut(entity).unwrap();
+        let rigidbody_b_impulse = rigidbody_b_stuff.0.as_mut();
+        {
+            // Apply an impulse of (10, 10) to the rigidbody
+            rigidbody_b_impulse.impulse.x = 10.;
+            rigidbody_b_impulse.impulse.y = 10.;
+        }
     }
+
+    // world ones
 }
