@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::ecs::schedule::ScheduleLabel;
 use bevy::window::PresentMode;
@@ -187,7 +189,13 @@ fn keyboard_input(
 fn simulate_springs(
     // query all spring component and their rigidbody. each spring should have this on each side
     mut multibody_spring_query: Query<(&mut MultiBodySpring, &ExternalImpulse)>,
-    mut world_spring_query: Query<(&mut WorldSpring, &ExternalImpulse)>,
+    mut world_spring_query: Query<(
+        &mut WorldSpring,
+        &Velocity,
+        &Transform,
+        &GlobalTransform,
+        &mut ExternalImpulse,
+    )>,
     mut other_impulse_query: Query<(&mut ExternalImpulse, Without<MultiBodySpring>)>,
     // commands omg
     mut commands: Commands,
@@ -207,8 +215,45 @@ fn simulate_springs(
     }
 
     // world ones
-    for (mut spring, rigidbody_impulse) in world_spring_query.iter_mut() {
+    for (mut spring, velocity, transform, global_transform, mut rigidbody_impulse) in
+        world_spring_query.iter_mut()
+    {
         // ok
-        let point_a_world = joe;
+        let point_a_world = global_transform
+            .transform_point(spring.local_anchor_a.extend(0.))
+            .truncate();
+        let point_b_world = spring.world_anchor_b;
+
+        let linvel_a = velocity.linvel;
+        let linvel_b = Vec2::new(0., 0.);
+        let angvel_a = velocity.angvel;
+        let angvel_b: f32 = 0.;
+
+        let spring_vector = point_b_world - point_a_world;
+        let direction = spring_vector.normalize();
+        let distance = (spring_vector.x.powf(2.) + spring_vector.y.powf(2.)).sqrt();
+
+        /* // Compute relative velocity of the anchor points, u
+        const u = this.sub(velB, velA);
+        const rj = this.crossZV(spring.getBodyBAngularVelocity(), spring.localAnchorB);
+        const ri = this.crossZV(spring.getBodyAAngularVelocity(), spring.localAnchorA);
+        const tmp = this.add(u, rj, ri);
+        const f = this.multiply(direction, -spring.stiffness * (distance - spring.targetLength) - spring.damping * this.dot(u, direction));
+        const forceA = this.multiply(f, -1);
+        const forceB = f; */
+
+        let ri = Vec2::new(
+            -angvel_a * spring.local_anchor_a.y,
+            angvel_a * spring.local_anchor_a.x,
+        );
+        let u = linvel_b - linvel_a + ri;
+        let f = direction
+            * (-spring.stiffness * (distance - spring.target_len)
+                - spring.damping * u.dot(direction));
+
+        let force_a = f * -1.;
+        let force_b = f;
+
+        rigidbody_impulse.impulse += force_a;
     }
 }
