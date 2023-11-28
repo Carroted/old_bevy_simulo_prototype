@@ -29,6 +29,7 @@ struct MultiBodySpring {
     target_len: f32,
 }
 
+#[derive(Component)]
 struct WorldSpring {
     local_anchor_a: Vec2,
     world_anchor_b: Vec2,
@@ -206,4 +207,8 @@ fn simulate_springs(
     }
 
     // world ones
+    for (mut spring, rigidbody_impulse) in world_spring_query.iter_mut() {
+        // ok
+        let point_a_world = joe;
+    }
 }
