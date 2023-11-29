@@ -57,7 +57,7 @@ fn main() {
         .add_plugins(ShapePlugin)
         .add_plugins(PanCamPlugin::default())
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(12.0))
-        .add_systems(PostUpdate.intern(), simulate_springs)
+        .add_systems(Update, simulate_springs)
         //.add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(LogDiagnosticsPlugin::default())
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
@@ -148,7 +148,7 @@ fn keyboard_input(
         .and_then(|cursor| camera.4.viewport_to_world(camera.3, cursor))
         .map(|ray| ray.origin.truncate())
     {
-        if buttons.pressed(MouseButton::Left) {
+        if buttons.just_pressed(MouseButton::Left) {
             // Left button was pressed, lets spawn cube at mouse
             /*commands.spawn((
                 SpriteBundle {
@@ -172,6 +172,20 @@ fn keyboard_input(
             if let Some((entity, projection)) =
                 rapier_context.project_point(world_position, solid, filter)
             {
+                let mut ent = commands.get_entity(entity).unwrap();
+                ent.insert((
+                    WorldSpring {
+                        target_len: 2.,
+                        damping: 0.1,
+                        local_anchor_a: Vec2::ZERO,
+                        world_anchor_b: Vec2::new(10., 10.),
+                        stiffness: 0.01,
+                    },
+                    ExternalImpulse::default(),
+                    Velocity::default(),
+                    GlobalTransform::default(),
+                ));
+
                 // The collider closest to the point has this `handle`.
                 println!(
                     "Projected point on entity {:?}. Point projection: {}",
@@ -181,6 +195,7 @@ fn keyboard_input(
                     "Point was inside of the collider shape: {}",
                     projection.is_inside
                 );
+                println!("Springed up!");
             }
         }
     }
@@ -193,9 +208,8 @@ fn simulate_springs(
         Without<WorldSpring>,
     )>,
     mut world_spring_query: Query<(
-        &mut WorldSpring,
+        &WorldSpring,
         &Velocity,
-        &Transform,
         &GlobalTransform,
         &mut ExternalImpulse,
         Without<MultiBodySpring>,
@@ -221,9 +235,10 @@ fn simulate_springs(
     }
 
     // world ones
-    for (mut spring, velocity, transform, global_transform, mut rigidbody_impulse, _) in
+    for (spring, velocity, global_transform, mut rigidbody_impulse, _) in
         world_spring_query.iter_mut()
     {
+        print!("a spring rela real real realing of up");
         // ok
         let point_a_world = global_transform
             .transform_point(spring.local_anchor_a.extend(0.))
@@ -260,6 +275,6 @@ fn simulate_springs(
         let force_a = f * -1.;
         let force_b = f;
 
-        rigidbody_impulse.impulse += force_a;
+        rigidbody_impulse.impulse = force_a;
     }
 }
