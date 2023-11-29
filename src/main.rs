@@ -187,19 +187,28 @@ fn keyboard_input(
 }
 
 fn simulate_springs(
-    mut multibody_spring_query: Query<(&mut MultiBodySpring, &ExternalImpulse)>,
+    mut multibody_spring_query: Query<(
+        &mut MultiBodySpring,
+        &ExternalImpulse,
+        Without<WorldSpring>,
+    )>,
     mut world_spring_query: Query<(
         &mut WorldSpring,
         &Velocity,
         &Transform,
         &GlobalTransform,
         &mut ExternalImpulse,
+        Without<MultiBodySpring>,
     )>,
-    mut other_impulse_query: Query<(&mut ExternalImpulse, Without<MultiBodySpring>)>,
+    mut other_impulse_query: Query<(
+        &mut ExternalImpulse,
+        Without<MultiBodySpring>,
+        Without<WorldSpring>,
+    )>,
     rapier_context: Res<RapierContext>,
 ) {
     // iterate over all springs
-    for (mut spring, rigidbody_a_impulse) in multibody_spring_query.iter_mut() {
+    for (mut spring, rigidbody_a_impulse, _) in multibody_spring_query.iter_mut() {
         // get the other impulser of the spring
         let entity = rapier_context.rigid_body_entity(spring.body_b_rb).unwrap();
         let mut rigidbody_b_stuff = other_impulse_query.get_mut(entity).unwrap();
@@ -212,7 +221,7 @@ fn simulate_springs(
     }
 
     // world ones
-    for (mut spring, velocity, transform, global_transform, mut rigidbody_impulse) in
+    for (mut spring, velocity, transform, global_transform, mut rigidbody_impulse, _) in
         world_spring_query.iter_mut()
     {
         // ok
