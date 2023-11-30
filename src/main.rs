@@ -100,13 +100,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             SpriteBundle {
                 sprite: Sprite {
                     color: Color::rgb(0.25, 0.25, 0.75),
-                    custom_size: Some(Vec2::new(4., 4.)),
+                    custom_size: Some(Vec2::new(16., 4.)),
                     ..default()
                 },
                 transform: Transform::from_translation(Vec3::new(140., 1. + i as f32 * 4.1, 0.00)),
                 ..default()
             },
-            Collider::cuboid(2.0, 2.0),
+            Collider::cuboid(8.0, 2.0),
             RigidBody::Dynamic,
         ));
     }
@@ -125,8 +125,10 @@ fn keyboard_input(
         &Camera,
         Without<Player>,
     )>,
+    transforms_query: Query<(&Transform, Without<MainCamera>)>,
     buttons: Res<Input<MouseButton>>,
     q_window: Query<&Window, With<PrimaryWindow>>,
+    mut world_spring_query: Query<(Entity, &mut WorldSpring)>,
 ) {
     // There is only one primary window, so we can similarly get it from the query:
     let window = q_window.single();
@@ -141,6 +143,12 @@ fn keyboard_input(
         _,
     ) = camera_query.single_mut();
 
+    if buttons.just_released(MouseButton::Left) {
+        // remove all springs
+        for (entity, mut spring) in world_spring_query.iter_mut() {
+            commands.entity(entity).remove::<WorldSpring>();
+        }
+    }
     // check if the cursor is inside the window and get its position
     // then, ask bevy to convert into world coordinates, and truncate to discard Z
     if let Some(world_position) = window
@@ -148,6 +156,9 @@ fn keyboard_input(
         .and_then(|cursor| camera.4.viewport_to_world(camera.3, cursor))
         .map(|ray| ray.origin.truncate())
     {
+        for (_, mut spring) in world_spring_query.iter_mut() {
+            spring.world_anchor_b = world_position;
+        }
         if buttons.just_pressed(MouseButton::Left) {
             // Left button was pressed, lets spawn cube at mouse
             /*commands.spawn((
@@ -172,18 +183,22 @@ fn keyboard_input(
             if let Some((entity, projection)) =
                 rapier_context.project_point(world_position, solid, filter)
             {
+                let (transform, _) = transforms_query.get(entity).unwrap();
                 let mut ent = commands.get_entity(entity).unwrap();
                 ent.insert((
                     WorldSpring {
-                        target_len: 2.,
-                        damping: 0.1,
-                        local_anchor_a: Vec2::ZERO,
-                        world_anchor_b: Vec2::new(10., 10.),
+                        target_len: 0.,
+                        damping: 0.,
+                        local_anchor_a: /*transform
+                            .transform_point(world_position.extend(0.))
+                            .truncate(), */ Vec2::new(2., 2.),
+                        world_anchor_b: world_position,
                         stiffness: 0.01,
                     },
                     ExternalImpulse::default(),
                     Velocity::default(),
                     GlobalTransform::default(),
+                    ReadMassProperties::default(),
                 ));
 
                 // The collider closest to the point has this `handle`.
@@ -213,6 +228,7 @@ fn simulate_springs(
         &GlobalTransform,
         &mut ExternalImpulse,
         Without<MultiBodySpring>,
+        &ReadMassProperties,
     )>,
     mut other_impulse_query: Query<(
         &mut ExternalImpulse,
@@ -220,6 +236,7 @@ fn simulate_springs(
         Without<WorldSpring>,
     )>,
     rapier_context: Res<RapierContext>,
+    mut gizmos: Gizmos,
 ) {
     // iterate over all springs
     for (mut spring, rigidbody_a_impulse, _) in multibody_spring_query.iter_mut() {
@@ -235,20 +252,21 @@ fn simulate_springs(
     }
 
     // world ones
-    for (spring, velocity, global_transform, mut rigidbody_impulse, _) in
+    for (spring, velocity, global_transform, mut rigidbody_impulse, _, mass_props) in
         world_spring_query.iter_mut()
     {
-        print!("a spring rela real real realing of up");
+        //print!("a spring rela real real realing of up");
         // ok
         let point_a_world = global_transform
             .transform_point(spring.local_anchor_a.extend(0.))
             .truncate();
         let point_b_world = spring.world_anchor_b;
 
+        gizmos.line_2d(point_a_world, point_b_world, Color::WHITE);
+
         let linvel_a = velocity.linvel;
         let linvel_b = Vec2::new(0., 0.);
         let angvel_a = velocity.angvel;
-        let angvel_b: f32 = 0.;
 
         let spring_vector = point_b_world - point_a_world;
         let direction = spring_vector.normalize();
@@ -269,12 +287,20 @@ fn simulate_springs(
         );
         let u = linvel_b - linvel_a + ri;
         let f = direction
-            * (-spring.stiffness * (distance - spring.target_len)
-                - spring.damping * u.dot(direction));
+            * ((-spring.stiffness * (distance - spring.target_len))
+                - (spring.damping * u.dot(direction)));
 
         let force_a = f * -1.;
         let force_b = f;
 
-        rigidbody_impulse.impulse = force_a;
+        let new_impulse = ExternalImpulse::at_point(
+            force_a,
+            point_a_world,
+            global_transform
+                .transform_point(mass_props.local_center_of_mass.extend(0.))
+                .truncate(),
+        );
+        rigidbody_impulse.impulse = new_impulse.impulse;
+        rigidbody_impulse.torque_impulse = new_impulse.torque_impulse;
     }
 }
