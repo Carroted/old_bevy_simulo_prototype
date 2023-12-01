@@ -255,8 +255,6 @@ fn simulate_springs(
     for (spring, velocity, global_transform, mut rigidbody_impulse, _, mass_props) in
         world_spring_query.iter_mut()
     {
-        //print!("a spring rela real real realing of up");
-        // ok
         let point_a_world = global_transform
             .transform_point(spring.local_anchor_a.extend(0.))
             .truncate();
@@ -272,6 +270,7 @@ fn simulate_springs(
         let direction = spring_vector.normalize();
         let distance = (spring_vector.x.powf(2.) + spring_vector.y.powf(2.)).sqrt();
 
+        // The spring code is based on what was used in Simulo NT:
         /* // Compute relative velocity of the anchor points, u
         const u = this.sub(velB, velA);
         const rj = this.crossZV(spring.getBodyBAngularVelocity(), spring.localAnchorB);
@@ -293,6 +292,7 @@ fn simulate_springs(
         let force_a = f * -1.;
         let force_b = f;
 
+        // Figure out what impulse would be on the body if applied at certain point
         let new_impulse = ExternalImpulse::at_point(
             force_a,
             point_a_world,
@@ -300,6 +300,8 @@ fn simulate_springs(
                 .transform_point(mass_props.local_center_of_mass.extend(0.))
                 .truncate(),
         );
+
+        // Apply spring force
         rigidbody_impulse.impulse = new_impulse.impulse;
         rigidbody_impulse.torque_impulse = new_impulse.torque_impulse;
     }
