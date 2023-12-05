@@ -208,7 +208,7 @@ fn keyboard_input(
                 ent.insert((
                     WorldSpring {
                         target_len: 0.,
-                        damping: 0.2,
+                        damping: 0.,
                         local_anchor_a: /*transform
                             .transform_point(world_position.extend(0.))
                             .truncate(), // Vec2::new(10., 0.),*/
@@ -218,7 +218,7 @@ fn keyboard_input(
                                 world_position,
                             ),
                         world_anchor_b: world_position,
-                        stiffness: 0.1,
+                        stiffness: 0.02,
                     },
                     ExternalImpulse::default(),
                     Velocity::default(),
