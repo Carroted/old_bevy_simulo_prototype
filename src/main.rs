@@ -112,6 +112,26 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     }
 }
 
+/*     getLocalPoint(bodyPosition: RAPIER.Vector2, bodyRotation: number, worldPoint: RAPIER.Vector2) {
+    const cos = Math.cos(bodyRotation);
+    const sin = Math.sin(bodyRotation);
+    const x = worldPoint.x - bodyPosition.x;
+    const y = worldPoint.y - bodyPosition.y;
+    const localX = x * cos + y * sin;
+    const localY = -x * sin + y * cos;
+    return new RAPIER.Vector2(localX, localY);
+} */
+
+fn get_local_point(body_position: Vec2, body_rotation: f32, world_point: Vec2) -> Vec2 {
+    let cos = body_rotation.cos();
+    let sin = body_rotation.sin();
+    let x = world_point.x - body_position.x;
+    let y = world_point.y - body_position.y;
+    let local_x = x * cos + y * sin;
+    let local_y = -x * sin + y * cos;
+    Vec2::new(local_x, local_y)
+}
+
 fn keyboard_input(
     mut commands: Commands,
     keys: Res<Input<KeyCode>>,
@@ -188,12 +208,17 @@ fn keyboard_input(
                 ent.insert((
                     WorldSpring {
                         target_len: 0.,
-                        damping: 0.,
+                        damping: 0.2,
                         local_anchor_a: /*transform
                             .transform_point(world_position.extend(0.))
-                            .truncate(), */ Vec2::new(2., 2.),
+                            .truncate(), // Vec2::new(10., 0.),*/
+                            get_local_point(
+                                transform.translation.truncate(),
+                                transform.rotation.to_euler(EulerRot::XYZ).2,
+                                world_position,
+                            ),
                         world_anchor_b: world_position,
-                        stiffness: 0.01,
+                        stiffness: 0.1,
                     },
                     ExternalImpulse::default(),
                     Velocity::default(),
@@ -214,6 +239,10 @@ fn keyboard_input(
             }
         }
     }
+}
+
+fn gcross(vec_a: Vec2, vec_b: Vec2) -> f32 {
+    vec_a.x * vec_b.y - vec_a.y * vec_b.x
 }
 
 fn simulate_springs(
@@ -292,17 +321,35 @@ fn simulate_springs(
         let force_a = f * -1.;
         let force_b = f;
 
+        gizmos.circle_2d(
+            global_transform
+                .transform_point(mass_props.local_center_of_mass.extend(0.))
+                .truncate(),
+            1.,
+            Color::GREEN,
+        );
+
+        gizmos.circle_2d(point_a_world, 1., Color::RED);
+
+        gizmos.circle_2d(point_b_world, 1., Color::BLUE);
+
         // Figure out what impulse would be on the body if applied at certain point
-        let new_impulse = ExternalImpulse::at_point(
+        /*let new_impulse = ExternalImpulse::at_point(
             force_a,
             point_a_world,
             global_transform
                 .transform_point(mass_props.local_center_of_mass.extend(0.))
                 .truncate(),
-        );
+        );*/
 
         // Apply spring force
-        rigidbody_impulse.impulse = new_impulse.impulse;
-        rigidbody_impulse.torque_impulse = new_impulse.torque_impulse;
+        rigidbody_impulse.impulse = force_a;
+        rigidbody_impulse.torque_impulse = gcross(
+            point_a_world
+                - global_transform
+                    .transform_point(mass_props.local_center_of_mass.extend(0.))
+                    .truncate(),
+            force_a,
+        ) / 200.;
     }
 }
