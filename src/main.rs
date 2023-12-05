@@ -49,7 +49,12 @@ fn main() {
                 resizable: true,
                 title: "Simulo".to_string(),
                 mode: bevy::window::WindowMode::Windowed,
+                #[cfg(target_arch = "wasm32")]
+                present_mode: PresentMode::default(),
+                // on everything other than wasm32-unknown-unknown, immediate is used up
+                #[cfg(not(target_arch = "wasm32"))]
                 present_mode: PresentMode::Immediate,
+                fit_canvas_to_parent: true,
                 ..Default::default()
             }),
             ..Default::default()
@@ -350,6 +355,6 @@ fn simulate_springs(
                     .transform_point(mass_props.local_center_of_mass.extend(0.))
                     .truncate(),
             force_a,
-        ) / 200.;
+        ) / 250.;
     }
 }
