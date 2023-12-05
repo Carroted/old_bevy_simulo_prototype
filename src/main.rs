@@ -47,7 +47,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 resizable: true,
-                title: "simulo_bevy".to_string(),
+                title: "Simulo".to_string(),
                 mode: bevy::window::WindowMode::Windowed,
                 present_mode: PresentMode::Immediate,
                 ..Default::default()
