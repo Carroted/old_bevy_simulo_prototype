@@ -399,18 +399,24 @@ fn simulate_springs(
 
         let force_a = f * -1.;
         let force_b = f;
-
-        gizmos.circle_2d(
-            global_transform
-                .transform_point(mass_props.local_center_of_mass.extend(0.))
-                .truncate(),
-            1.,
+        /*
+        let com = global_transform
+            .transform_point(mass_props.local_center_of_mass.extend(0.))
+            .truncate();
+        gizmos.line_2d(
+            com + Vec2::new(0., 0.8),
+            com - Vec2::new(0., 0.8),
+            Color::GREEN,
+        );
+        gizmos.line_2d(
+            com + Vec2::new(0.8, 0.),
+            com - Vec2::new(0.8, 0.),
             Color::GREEN,
         );
 
-        gizmos.circle_2d(point_a_world, 1., Color::RED);
+        gizmos.circle_2d(point_a_world, 0.8, Color::RED);
 
-        gizmos.circle_2d(point_b_world, 1., Color::BLUE);
+        gizmos.circle_2d(point_b_world, 0.8, Color::BLUE);*/
 
         // Figure out what impulse would be on the body if applied at certain point
         /*let new_impulse = ExternalImpulse::at_point(
