@@ -103,6 +103,32 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Collider::cuboid(5000.0, 500.0),
     ));
 
+    commands.spawn((
+        // Create a TextBundle that has a Text with a single section.
+        TextBundle::from_section(
+            // Accepts a `String` or any type that converts into a `String`, such as `&str`
+            #[cfg(target_arch = "wasm32")]
+            "Simulo\nBrowser (WASM)\n",
+            #[cfg(not(target_arch = "wasm32"))]
+            "Simulo\nNative\n",
+            TextStyle {
+                // This font is loaded and will be used instead of the default font.
+                font: asset_server.load("fonts/Urbanist-SemiBold.ttf"),
+                font_size: 100.0,
+                ..default()
+            },
+        ) // Set the alignment of the Text
+        .with_text_alignment(TextAlignment::Center)
+        // Set the style of the TextBundle itself.
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(5.0),
+            right: Val::Px(5.0),
+            ..default()
+        }),
+        ColorText,
+    ));
+
     // 1000 rigidbody boxes stacked on Y axis
     for i in 0..50 {
         commands.spawn((
