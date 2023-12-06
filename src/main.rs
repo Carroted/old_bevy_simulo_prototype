@@ -43,7 +43,11 @@ struct WorldSpring {
 fn main() {
     App::new()
         .insert_resource(Msaa::Sample4)
-        .insert_resource(ClearColor(Color::rgb(32. / 255., 28. / 255., 71. / 255.)))
+        .insert_resource(ClearColor(Color::rgb(
+            0.13333333333333333,
+            0.11764705882352941,
+            0.2901960784313726,
+        )))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 resizable: true,
@@ -89,7 +93,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::rgb(0.67, 0.58, 0.99),
+                color: Color::rgb(0.6313725490196078, 0.6745098039215687, 0.9803921568627451),
                 custom_size: Some(Vec2::new(10000.0, 1000.0)),
                 ..default()
             },
@@ -211,6 +215,10 @@ fn keyboard_input(
                 let (transform, _) = transforms_query.get(entity).unwrap();
                 let mut ent = commands.get_entity(entity).unwrap();
                 ent.insert((
+                    ExternalImpulse::default(),
+                    Velocity::default(),
+                    GlobalTransform::default(),
+                    ReadMassProperties::default(),
                     WorldSpring {
                         target_len: 0.,
                         damping: 0.,
@@ -225,10 +233,6 @@ fn keyboard_input(
                         world_anchor_b: world_position,
                         stiffness: 0.02,
                     },
-                    ExternalImpulse::default(),
-                    Velocity::default(),
-                    GlobalTransform::default(),
-                    ReadMassProperties::default(),
                 ));
 
                 // The collider closest to the point has this `handle`.
@@ -303,6 +307,11 @@ fn simulate_springs(
         let spring_vector = point_b_world - point_a_world;
         let direction = spring_vector.normalize();
         let distance = (spring_vector.x.powf(2.) + spring_vector.y.powf(2.)).sqrt();
+
+        // make sure the distance is greater than certain threshold
+        if distance < 0.001 {
+            continue;
+        }
 
         // The spring code is based on what was used in Simulo NT:
         /* // Compute relative velocity of the anchor points, u
