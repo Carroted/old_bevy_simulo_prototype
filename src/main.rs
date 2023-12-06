@@ -89,6 +89,9 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.insert_resource(Tools {
+        current_tool: Tool::Drag,
+    });
     commands
         .spawn((
             Camera2dBundle {
@@ -201,7 +204,7 @@ fn keyboard_input(
     buttons: Res<Input<MouseButton>>,
     q_window: Query<&Window, With<PrimaryWindow>>,
     mut world_spring_query: Query<(Entity, &mut WorldSpring)>,
-    tool: Res<Tools>,
+    mut tool_res: ResMut<Tools>,
 ) {
     // There is only one primary window, so we can similarly get it from the query:
     let window = q_window.single();
@@ -215,6 +218,14 @@ fn keyboard_input(
         &Camera,
         _,
     ) = camera_query.single_mut();
+
+    if keys.just_pressed(KeyCode::Key1) {
+        tool_res.current_tool = Tool::Drag;
+    } else if keys.just_pressed(KeyCode::Key2) {
+        tool_res.current_tool = Tool::Rectangle;
+    }
+
+    let current_tool = tool_res.current_tool;
 
     if buttons.just_released(MouseButton::Left) {
         // remove all springs
@@ -232,38 +243,47 @@ fn keyboard_input(
         for (_, mut spring) in world_spring_query.iter_mut() {
             spring.world_anchor_b = world_position;
         }
-        if buttons.just_pressed(MouseButton::Left) {
-            // Left button was pressed, lets spawn cube at mouse
-            /*commands.spawn((
-                SpriteBundle {
-                    sprite: Sprite {
-                        color: Color::rgb(0.25, 0.25, 0.75),
-                        custom_size: Some(Vec2::new(4., 4.)),
+        if buttons.pressed(MouseButton::Left) {
+            if current_tool == Tool::Rectangle {
+                // Left button was pressed, lets spawn cube at mouse
+                commands.spawn((
+                    SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::rgb(0.75, 0.25, 0.25),
+                            custom_size: Some(Vec2::new(4., 4.)),
+                            ..default()
+                        },
+                        transform: Transform::from_translation(Vec3::new(
+                            world_position.x,
+                            world_position.y,
+                            0.00,
+                        )),
                         ..default()
                     },
-                    transform: Transform::from_translation(Vec3::new(
-                        world_position.x,
-                        world_position.y,
-                        0.00,
-                    )),
-                    ..default()
-                },
-                Collider::cuboid(2.0, 2.0),
-                RigidBody::Dynamic,
-            ));*/
-            let solid = true;
-            let filter = QueryFilter::default();
-            if let Some((entity, projection)) =
-                rapier_context.project_point(world_position, solid, filter)
-            {
-                let (transform, _) = transforms_query.get(entity).unwrap();
-                let mut ent = commands.get_entity(entity).unwrap();
-                ent.insert((
-                    ExternalImpulse::default(),
-                    Velocity::default(),
-                    GlobalTransform::default(),
-                    ReadMassProperties::default(),
-                    WorldSpring {
+                    Collider::cuboid(2.0, 2.0),
+                    RigidBody::Dynamic,
+                    ExternalImpulse {
+                        impulse: Vec2::new(0., 30.),
+                        ..Default::default()
+                    },
+                ));
+            }
+        }
+        if buttons.just_pressed(MouseButton::Left) {
+            if current_tool == Tool::Drag {
+                let solid = true;
+                let filter = QueryFilter::default();
+                if let Some((entity, projection)) =
+                    rapier_context.project_point(world_position, solid, filter)
+                {
+                    let (transform, _) = transforms_query.get(entity).unwrap();
+                    let mut ent = commands.get_entity(entity).unwrap();
+                    ent.insert((
+                        ExternalImpulse::default(),
+                        Velocity::default(),
+                        GlobalTransform::default(),
+                        ReadMassProperties::default(),
+                        WorldSpring {
                         target_len: 0.,
                         damping: 0.,
                         local_anchor_a: /*transform
@@ -277,18 +297,19 @@ fn keyboard_input(
                         world_anchor_b: world_position,
                         stiffness: 0.02,
                     },
-                ));
+                    ));
 
-                // The collider closest to the point has this `handle`.
-                println!(
-                    "Projected point on entity {:?}. Point projection: {}",
-                    entity, projection.point
-                );
-                println!(
-                    "Point was inside of the collider shape: {}",
-                    projection.is_inside
-                );
-                println!("Springed up!");
+                    // The collider closest to the point has this `handle`.
+                    println!(
+                        "Projected point on entity {:?}. Point projection: {}",
+                        entity, projection.point
+                    );
+                    println!(
+                        "Point was inside of the collider shape: {}",
+                        projection.is_inside
+                    );
+                    println!("Springed up!");
+                }
             }
         }
     }
