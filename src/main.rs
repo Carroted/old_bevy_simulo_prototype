@@ -40,6 +40,19 @@ struct WorldSpring {
     target_len: f32,
 }
 
+// enum of all the tools, we will use it in a resource
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Tool {
+    Drag,
+    Rectangle,
+    Circle,
+}
+
+#[derive(Resource)]
+struct Tools {
+    current_tool: Tool,
+}
+
 fn main() {
     App::new()
         .insert_resource(Msaa::Sample4)
@@ -54,7 +67,7 @@ fn main() {
                 title: "Simulo".to_string(),
                 mode: bevy::window::WindowMode::Windowed,
                 #[cfg(target_arch = "wasm32")]
-                present_mode: PresentMode::default(),
+                present_mode: PresentMode::default(), // wasm32-unknown-unknown doesn't support PresentMode::Immediate
                 // on everything other than wasm32-unknown-unknown, immediate is used up
                 #[cfg(not(target_arch = "wasm32"))]
                 present_mode: PresentMode::Immediate,
@@ -188,6 +201,7 @@ fn keyboard_input(
     buttons: Res<Input<MouseButton>>,
     q_window: Query<&Window, With<PrimaryWindow>>,
     mut world_spring_query: Query<(Entity, &mut WorldSpring)>,
+    tool: Res<Tools>,
 ) {
     // There is only one primary window, so we can similarly get it from the query:
     let window = q_window.single();
