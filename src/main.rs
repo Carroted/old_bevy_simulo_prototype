@@ -9,6 +9,8 @@ use bevy::{
     sprite::MaterialMesh2dBundle,
     window::PrimaryWindow,
 };
+use bevy_egui::egui::RichText;
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use bevy_pancam::{PanCam, PanCamPlugin};
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
@@ -40,6 +42,9 @@ struct WorldSpring {
     target_len: f32,
 }
 
+#[derive(Debug, Clone, Copy, SystemSet, PartialEq, Eq, Hash)]
+pub struct EguiUnfocusedSystemSet;
+
 // enum of all the tools, we will use it in a resource
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Tool {
@@ -53,14 +58,39 @@ struct Tools {
     current_tool: Tool,
 }
 
+#[derive(Resource)]
+struct UIState {
+    closed_welcome: bool,
+}
+
+#[derive(Resource, Deref, DerefMut, PartialEq, Eq, Default)]
+struct EguiWantsFocus(bool);
+
+fn check_egui_wants_focus(
+    mut contexts: Query<&mut bevy_egui::EguiContext>,
+    mut wants_focus: ResMut<EguiWantsFocus>,
+) {
+    let ctx = contexts.iter_mut().next();
+    let new_wants_focus = if let Some(ctx) = ctx {
+        let ctx = ctx.into_inner().get_mut();
+        ctx.wants_pointer_input() || ctx.wants_keyboard_input()
+    } else {
+        false
+    };
+    wants_focus.set_if_neq(EguiWantsFocus(new_wants_focus));
+}
+
 fn main() {
-    App::new()
-        .insert_resource(Msaa::Sample4)
+    let mut app = App::new();
+    app.insert_resource(Msaa::Sample4)
         .insert_resource(ClearColor(Color::rgb(
             0.13333333333333333,
             0.11764705882352941,
             0.2901960784313726,
         )))
+        .insert_resource(UIState {
+            closed_welcome: false,
+        })
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 resizable: true,
@@ -76,6 +106,7 @@ fn main() {
             }),
             ..Default::default()
         }))
+        .add_plugins(EguiPlugin)
         .add_plugins(ShapePlugin)
         .add_plugins(PanCamPlugin::default())
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(12.0))
@@ -84,8 +115,17 @@ fn main() {
         .add_plugins(LogDiagnosticsPlugin::default())
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, keyboard_input)
-        .run();
+        .add_systems(Update, ui_system)
+        .add_systems(Update, keyboard_input.in_set(EguiUnfocusedSystemSet));
+
+    app.init_resource::<EguiWantsFocus>()
+        .add_systems(PostUpdate, check_egui_wants_focus)
+        .configure_sets(
+            Update,
+            EguiUnfocusedSystemSet.run_if(resource_equals(EguiWantsFocus(false))),
+        );
+
+    app.run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -187,6 +227,67 @@ fn get_local_point(body_position: Vec2, body_rotation: f32, world_point: Vec2) -
     Vec2::new(local_x, local_y)
 }
 
+fn ui_system(
+    mut contexts: EguiContexts,
+    mut tool_res: ResMut<Tools>,
+    mut ui_state: ResMut<UIState>,
+) {
+    if !ui_state.closed_welcome {
+        egui::Window::new("Welcome to the new Simulo!").show(contexts.ctx_mut(), |ui| {
+        ui.label("This is the brand new Rust Simulo. It's pretty nice maybe.\n");
+
+        let list_spacing: f32 = 5.;
+
+        ui.label(RichText::new("A few things to note:").underline());
+        ui.add_space(list_spacing);
+
+        ui.label(RichText::new(" - This is insanely early in development, don't expect much.").strong());
+        ui.add_space(list_spacing);
+
+        #[cfg(target_arch = "wasm32")]
+        ui.label(RichText::new(" - Performance is much better on desktop/mobile \"native\" builds, you're on the web version.").strong().color(egui::Color32::GOLD));
+        #[cfg(not(target_arch = "wasm32"))]
+        ui.label(" - You're running a native build, performance should be good.");
+
+        ui.add_space(list_spacing);
+
+        ui.label(" - Vsync is intentionally disabled for now so there's less latency, but you might get screen tearing.");
+        ui.add_space(list_spacing);
+
+        ui.label(" - The UI will have a theme soon, right now this is just the default egui theme.");
+        ui.add_space(list_spacing);
+
+        ui.label(" - Middle click to pan, scroll to zoom. Currently it lets you right click to pan, but this will be changed when the right click menu is added, so don't get used to it.");
+        ui.add_space(list_spacing);
+
+        ui.separator();
+
+        ui.horizontal(|ui| {
+            // Dismiss
+            if ui.button("Dismiss").clicked() {
+                // Close the window
+                ui_state.closed_welcome = true;
+            }
+
+            ui.add(egui::Hyperlink::from_label_and_url(
+                "Join Simulo Discord server",
+                "https://discord.gg/YRspMMj8HR",
+            ));
+
+            ui.add(egui::Hyperlink::from_label_and_url(
+                "Source code",
+                "https://github.com/Carroted/simulo_bevy",
+            ));
+        });
+    });
+    }
+    // tool radio buttons
+    egui::Window::new("Tools").show(contexts.ctx_mut(), |ui| {
+        ui.radio_value(&mut tool_res.current_tool, Tool::Drag, "Drag");
+        ui.radio_value(&mut tool_res.current_tool, Tool::Rectangle, "Rectangle");
+    });
+}
+
 fn keyboard_input(
     mut commands: Commands,
     keys: Res<Input<KeyCode>>,
@@ -233,6 +334,7 @@ fn keyboard_input(
             commands.entity(entity).remove::<WorldSpring>();
         }
     }
+
     // check if the cursor is inside the window and get its position
     // then, ask bevy to convert into world coordinates, and truncate to discard Z
     if let Some(world_position) = window
