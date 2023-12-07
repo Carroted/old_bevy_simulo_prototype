@@ -20,6 +20,15 @@ opt-level = 1
 # Enable high optimizations for dependencies (incl. Bevy), but not for our code:
 [profile.dev.package."*"]
 opt-level = 3
+# Our dependencies will all be in release mode. This has 2 benefits:
+# 1. They will be faster
+# 2. They will not be recompiled when we switch to release mode, thus saving time and storage space
+debug = false
 
 [profile.release]
 lto = "thin"
+opt-level = 3
+
+[profile.release.package."*"]
+opt-level = 3
+debug = false

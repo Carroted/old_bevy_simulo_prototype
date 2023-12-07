@@ -63,6 +63,16 @@ struct UIState {
     closed_welcome: bool,
 }
 
+#[derive(Component)]
+struct DrawingRectangle {
+    start: Vec2,
+}
+
+#[derive(Component)]
+struct DrawingCircle {
+    start: Vec2,
+}
+
 #[derive(Resource, Deref, DerefMut, PartialEq, Eq, Default)]
 struct EguiWantsFocus(bool);
 
@@ -301,11 +311,21 @@ fn keyboard_input(
         &Camera,
         Without<Player>,
     )>,
-    transforms_query: Query<(&Transform, Without<MainCamera>)>,
+    transforms_query: Query<(&Transform, Without<MainCamera>, &RigidBody)>,
     buttons: Res<Input<MouseButton>>,
     q_window: Query<&Window, With<PrimaryWindow>>,
     mut world_spring_query: Query<(Entity, &mut WorldSpring)>,
     mut tool_res: ResMut<Tools>,
+    mut drawing_rectangle_query: Query<(
+        &DrawingRectangle,
+        &mut Sprite,
+        Entity,
+        &mut Transform,
+        Without<WorldSpring>,
+        Without<MultiBodySpring>,
+        Without<MainCamera>,
+        Without<RigidBody>,
+    )>,
 ) {
     // There is only one primary window, so we can similarly get it from the query:
     let window = q_window.single();
@@ -348,7 +368,7 @@ fn keyboard_input(
         if buttons.pressed(MouseButton::Left) {
             if current_tool == Tool::Rectangle {
                 // Left button was pressed, lets spawn cube at mouse
-                commands.spawn((
+                /*commands.spawn((
                     SpriteBundle {
                         sprite: Sprite {
                             color: Color::rgb(0.75, 0.25, 0.25),
@@ -368,24 +388,73 @@ fn keyboard_input(
                         impulse: Vec2::new(0., 30.),
                         ..Default::default()
                     },
+                ));*/
+            }
+        }
+        if buttons.just_released(MouseButton::Left) {
+            if current_tool == Tool::Rectangle {
+                // query time
+                let (drawing_rectangle, mut sprite, entity, mut transform, _, _, _, _) =
+                    drawing_rectangle_query.single_mut();
+                let start = drawing_rectangle.start;
+                let end = world_position;
+                let width = (start.x - end.x).abs();
+                let height = (start.y - end.y).abs();
+                let size = Vec2::new(width, height);
+                let center = (start + end) / 2.;
+                sprite.custom_size = Some(size);
+                // same color but alpha 1
+                sprite.color =
+                    Color::rgba(sprite.color.r(), sprite.color.g(), sprite.color.b(), 1.);
+                let mut ent = commands.get_entity(entity).unwrap();
+                ent.remove::<DrawingRectangle>();
+                ent.insert((
+                    Collider::cuboid(width / 2., height / 2.),
+                    RigidBody::Dynamic,
                 ));
+                // transform it up
+                transform.translation = Vec3::new(center.x, center.y, 0.);
             }
         }
         if buttons.just_pressed(MouseButton::Left) {
+            if (current_tool == Tool::Rectangle) {
+                // spawn just a display of a transparent rectangle with 0 size, no collider or rb or anything, when mouse moves, update the size, when mouse is released, spawn the actual thing
+                commands.spawn((
+                    SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::rgba(rand::random(), rand::random(), rand::random(), 0.5),
+                            custom_size: Some(Vec2::new(0., 0.)),
+                            ..default()
+                        },
+                        transform: Transform::from_translation(Vec3::new(
+                            world_position.x,
+                            world_position.y,
+                            0.00,
+                        )),
+                        ..default()
+                    },
+                    DrawingRectangle {
+                        start: world_position,
+                    },
+                ));
+            }
             if current_tool == Tool::Drag {
                 let solid = true;
                 let filter = QueryFilter::default();
                 if let Some((entity, projection)) =
                     rapier_context.project_point(world_position, solid, filter)
                 {
-                    let (transform, _) = transforms_query.get(entity).unwrap();
-                    let mut ent = commands.get_entity(entity).unwrap();
-                    ent.insert((
-                        ExternalImpulse::default(),
-                        Velocity::default(),
-                        GlobalTransform::default(),
-                        ReadMassProperties::default(),
-                        WorldSpring {
+                    let result = transforms_query.get(entity);
+                    // check if its real
+                    if result.is_ok() {
+                        let (transform, _, _) = result.unwrap();
+                        let mut ent = commands.get_entity(entity).unwrap();
+                        ent.insert((
+                            ExternalImpulse::default(),
+                            Velocity::default(),
+                            GlobalTransform::default(),
+                            ReadMassProperties::default(),
+                            WorldSpring {
                         target_len: 0.,
                         damping: 0.,
                         local_anchor_a: /*transform
@@ -399,20 +468,46 @@ fn keyboard_input(
                         world_anchor_b: world_position,
                         stiffness: 0.02,
                     },
-                    ));
+                        ));
 
-                    // The collider closest to the point has this `handle`.
-                    println!(
-                        "Projected point on entity {:?}. Point projection: {}",
-                        entity, projection.point
-                    );
-                    println!(
-                        "Point was inside of the collider shape: {}",
-                        projection.is_inside
-                    );
-                    println!("Springed up!");
+                        // The collider closest to the point has this `handle`.
+                        println!(
+                            "Projected point on entity {:?}. Point projection: {}",
+                            entity, projection.point
+                        );
+                        println!(
+                            "Point was inside of the collider shape: {}",
+                            projection.is_inside
+                        );
+                        println!("Springed up!");
+                    }
                 }
             }
+        }
+        // query time
+        /*let (drawing_rectangle, mut sprite, _, mut transform, _, _, _, _) =
+            drawing_rectangle_query
+        let start = drawing_rectangle.start;
+        let end = world_position;
+        let width = (start.x - end.x).abs();
+        let height = (start.y - end.y).abs();
+        let size = Vec2::new(width, height);
+        let center = (start + end) / 2.;
+        sprite.custom_size = Some(size);
+        // transform it up
+        transform.translation = Vec3::new(center.x, center.y, 0.);*/
+        for (drawing_rectangle, mut sprite, _, mut transform, _, _, _, _) in
+            drawing_rectangle_query.iter_mut()
+        {
+            let start = drawing_rectangle.start;
+            let end = world_position;
+            let width = (start.x - end.x).abs();
+            let height = (start.y - end.y).abs();
+            let size = Vec2::new(width, height);
+            let center = (start + end) / 2.;
+            sprite.custom_size = Some(size);
+            // transform it up
+            transform.translation = Vec3::new(center.x, center.y, 0.);
         }
     }
 }
