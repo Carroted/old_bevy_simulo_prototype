@@ -337,6 +337,7 @@ fn ui_system(
     egui::Window::new("Tools").show(contexts.ctx_mut(), |ui| {
         ui.radio_value(&mut tool_res.current_tool, Tool::Drag, "Drag");
         ui.radio_value(&mut tool_res.current_tool, Tool::Rectangle, "Rectangle");
+        ui.radio_value(&mut tool_res.current_tool, Tool::Circle, "Circle");
     });
 }
 
@@ -367,6 +368,17 @@ fn keyboard_input(
         Without<MultiBodySpring>,
         Without<MainCamera>,
         Without<RigidBody>,
+    )>,
+    mut drawing_circle_query: Query<(
+        &DrawingCircle,
+        &mut Sprite,
+        Entity,
+        &mut Transform,
+        Without<WorldSpring>,
+        Without<MultiBodySpring>,
+        Without<MainCamera>,
+        Without<RigidBody>,
+        Without<DrawingRectangle>,
     )>,
 ) {
     // There is only one primary window, so we can similarly get it from the query:
@@ -458,6 +470,29 @@ fn keyboard_input(
                 transform.translation = Vec3::new(center.x, center.y, 0.);
                 ent.remove::<Aabb>(); // force recalculation
             }
+            // the the the
+            if current_tool == Tool::Circle {
+                let (drawing_circle, mut sprite, entity, mut transform, _, _, _, _, _) =
+                    drawing_circle_query.single_mut();
+
+                let start = drawing_circle.start;
+                let end = world_position;
+                let width = (start.x - end.x);
+                let height = (start.y - end.y);
+                let size = width.abs().max(height);
+                let mut center = (start + Vec2::new(size, size));
+                if 
+                sprite.custom_size = Some(Vec2::new(size / 2., size / 2.));
+                // same color but alpha 1
+                sprite.color =
+                    Color::rgba(sprite.color.r(), sprite.color.g(), sprite.color.b(), 1.);
+                let mut ent = commands.get_entity(entity).unwrap();
+                ent.remove::<DrawingRectangle>();
+                ent.insert((Collider::ball(size / 2.), RigidBody::Dynamic));
+                // transform it up
+                transform.translation = Vec3::new(center.x, center.y, 0.);
+                ent.remove::<Aabb>(); // force recalculation
+            }
         }
         if buttons.just_pressed(MouseButton::Left) {
             if (current_tool == Tool::Rectangle) {
@@ -477,6 +512,27 @@ fn keyboard_input(
                         ..default()
                     },
                     DrawingRectangle {
+                        start: world_position,
+                    },
+                ));
+            }
+            if (current_tool == Tool::Circle) {
+                // spawn just a display of a transparent circle with 0 size, no collider or rb or anything, when mouse moves, update the size, when mouse is released, spawn the actual thing
+                commands.spawn((
+                    SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::rgba(rand::random(), rand::random(), rand::random(), 0.5),
+                            custom_size: Some(Vec2::new(0., 0.)),
+                            ..default()
+                        },
+                        transform: Transform::from_translation(Vec3::new(
+                            world_position.x,
+                            world_position.y,
+                            0.00,
+                        )),
+                        ..default()
+                    },
+                    DrawingCircle {
                         start: world_position,
                     },
                 ));
@@ -549,6 +605,24 @@ fn keyboard_input(
             let size = Vec2::new(width, height);
             let center = (start + end) / 2.;
             sprite.custom_size = Some(size);
+            // transform it up
+            transform.translation = Vec3::new(center.x, center.y, 0.);
+
+            let mut ent = commands.get_entity(entity).unwrap();
+
+            ent.remove::<Aabb>(); // force recalculation so it doesnt cull incorrectly (size starts at 0, if we dont do this it will be culled when center is outside of the screen)
+        }
+
+        for (drawing_circle, mut sprite, entity, mut transform, _, _, _, _, _) in
+            drawing_circle_query.iter_mut()
+        {
+            let start = drawing_circle.start;
+            let end = world_position;
+            let width = (start.x - end.x).abs();
+            let height = (start.y - end.y).abs();
+            let size = width.max(height);
+            let center = (start + end) / 2.;
+            sprite.custom_size = Some(Vec2::new(size, size));
             // transform it up
             transform.translation = Vec3::new(center.x, center.y, 0.);
 
