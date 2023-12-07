@@ -2,6 +2,7 @@ use std::ops::Sub;
 
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::ecs::schedule::ScheduleLabel;
+use bevy::render::primitives::Aabb;
 use bevy::window::PresentMode;
 use bevy::{
     prelude::*,
@@ -414,6 +415,7 @@ fn keyboard_input(
                 ));
                 // transform it up
                 transform.translation = Vec3::new(center.x, center.y, 0.);
+                ent.remove::<Aabb>(); // force recalculation
             }
         }
         if buttons.just_pressed(MouseButton::Left) {
@@ -496,7 +498,7 @@ fn keyboard_input(
         sprite.custom_size = Some(size);
         // transform it up
         transform.translation = Vec3::new(center.x, center.y, 0.);*/
-        for (drawing_rectangle, mut sprite, _, mut transform, _, _, _, _) in
+        for (drawing_rectangle, mut sprite, entity, mut transform, _, _, _, _) in
             drawing_rectangle_query.iter_mut()
         {
             let start = drawing_rectangle.start;
@@ -508,6 +510,10 @@ fn keyboard_input(
             sprite.custom_size = Some(size);
             // transform it up
             transform.translation = Vec3::new(center.x, center.y, 0.);
+
+            let mut ent = commands.get_entity(entity).unwrap();
+
+            ent.remove::<Aabb>(); // force recalculation so it doesnt cull incorrectly (size starts at 0, if we dont do this it will be culled when center is outside of the screen)
         }
     }
 }
