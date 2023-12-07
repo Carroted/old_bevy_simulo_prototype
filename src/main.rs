@@ -3,6 +3,8 @@ use std::ops::Sub;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::ecs::schedule::ScheduleLabel;
 use bevy::render::primitives::Aabb;
+use bevy::render::render_resource::{AsBindGroup, ShaderRef};
+use bevy::sprite::Material2d;
 use bevy::window::PresentMode;
 use bevy::{
     prelude::*,
@@ -41,6 +43,27 @@ struct WorldSpring {
     stiffness: f32,
     damping: f32,
     target_len: f32,
+}
+
+#[derive(AsBindGroup, Debug, Clone, Asset, TypePath)]
+pub struct MatterMaterial {
+    #[uniform(0)]
+    color: Color,
+    #[uniform(1)]
+    strokeColor: Color,
+    #[uniform(2)]
+    strokeWidth: f32,
+    #[texture(3)]
+    #[sampler(4)]
+    color_texture: Handle<Image>,
+}
+
+// All functions on `Material2d` have default impls. You only need to implement the
+// functions that are relevant for your material.
+impl Material2d for MatterMaterial {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/matter.wgsl".into()
+    }
 }
 
 #[derive(Debug, Clone, Copy, SystemSet, PartialEq, Eq, Hash)]
@@ -136,10 +159,17 @@ fn main() {
             EguiUnfocusedSystemSet.run_if(resource_equals(EguiWantsFocus(false))),
         );
 
+    // matter material
+    app.init_asset::<MatterMaterial>();
+
     app.run();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<MatterMaterial>>,
+) {
     commands.insert_resource(Tools {
         current_tool: Tool::Drag,
     });
@@ -216,6 +246,17 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             RigidBody::Dynamic,
         ));
     }
+
+    commands.spawn(MaterialMesh2dBundle {
+        material: materials.add(MatterMaterial {
+            color: Color::RED,
+            strokeColor: Color::BLACK,
+            strokeWidth: 1.0,
+            color_texture: asset_server.load("icon_square.png"),
+        }),
+        transform: Transform::from_translation(Vec3::new(0., 10., 0.)),
+        ..Default::default()
+    });
 }
 
 /*     getLocalPoint(bodyPosition: RAPIER.Vector2, bodyRotation: number, worldPoint: RAPIER.Vector2) {
