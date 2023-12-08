@@ -471,7 +471,7 @@ fn keyboard_input(
                 ent.remove::<Aabb>(); // force recalculation
             }
             // the the the
-            if current_tool == Tool::Circle {
+            /*if current_tool == Tool::Circle {
                 let (drawing_circle, mut sprite, entity, mut transform, _, _, _, _, _) =
                     drawing_circle_query.single_mut();
 
@@ -492,7 +492,7 @@ fn keyboard_input(
                 // transform it up
                 transform.translation = Vec3::new(center.x, center.y, 0.);
                 ent.remove::<Aabb>(); // force recalculation
-            }
+            }*/
         }
         if buttons.just_pressed(MouseButton::Left) {
             if (current_tool == Tool::Rectangle) {
