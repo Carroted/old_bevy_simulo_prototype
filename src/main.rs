@@ -528,7 +528,6 @@ fn keyboard_input(
                 color = Color::rgb(0.5, 0.5, 1.);
             }
             let mut ent = commands.spawn((
-                rb,
                 SpriteBundle {
                     sprite: Sprite {
                         custom_size: Some(Vec2::new(8., 16.)),
