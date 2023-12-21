@@ -523,13 +523,11 @@ fn keyboard_input(
             gizmos.rect_2d(world_position, 0.0, Vec2::new(16., 8.), color);
         }
         if keys.just_released(KeyCode::V) {
-            let mut rb = RigidBody::Dynamic;
             let mut color = Color::rgb(1., 1., 1.);
             if keys.pressed(KeyCode::ShiftLeft) {
-                rb = RigidBody::Fixed;
                 color = Color::rgb(0.5, 0.5, 1.);
             }
-            commands.spawn((
+            let mut ent = commands.spawn((
                 rb,
                 SpriteBundle {
                     sprite: Sprite {
@@ -547,16 +545,16 @@ fn keyboard_input(
                 },
                 Collider::cuboid(4., 8.),
             ));
+            if !keys.pressed(KeyCode::ShiftLeft) {
+                ent.insert(RigidBody::Dynamic);
+            }
         }
         if keys.just_released(KeyCode::H) {
-            let mut rb = RigidBody::Dynamic;
             let mut color = Color::rgb(1., 1., 1.);
             if keys.pressed(KeyCode::ShiftLeft) {
-                rb = RigidBody::Fixed;
                 color = Color::rgb(0.5, 0.5, 1.);
             }
-            commands.spawn((
-                rb,
+            let mut ent = commands.spawn((
                 SpriteBundle {
                     sprite: Sprite {
                         custom_size: Some(Vec2::new(16., 8.)),
@@ -573,6 +571,9 @@ fn keyboard_input(
                 },
                 Collider::cuboid(8., 4.),
             ));
+            if !keys.pressed(KeyCode::ShiftLeft) {
+                ent.insert(RigidBody::Dynamic);
+            }
         }
         if keys.just_pressed(KeyCode::M) {
             spawn_person(
