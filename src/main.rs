@@ -509,28 +509,32 @@ fn keyboard_input(
             );
         }
         if keys.pressed(KeyCode::V) {
-            gizmos.rect_2d(
-                world_position,
-                0.0,
-                Vec2::new(8., 16.),
-                Color::rgb(1., 1., 1.),
-            );
+            let mut color = Color::rgb(1., 1., 1.);
+            if keys.pressed(KeyCode::ShiftLeft) {
+                color = Color::rgb(0.5, 0.5, 1.);
+            }
+            gizmos.rect_2d(world_position, 0.0, Vec2::new(8., 16.), color);
         }
         if keys.pressed(KeyCode::H) {
-            gizmos.rect_2d(
-                world_position,
-                0.0,
-                Vec2::new(16., 8.),
-                Color::rgb(1., 1., 1.),
-            );
+            let mut color = Color::rgb(1., 1., 1.);
+            if keys.pressed(KeyCode::ShiftLeft) {
+                color = Color::rgb(0.5, 0.5, 1.);
+            }
+            gizmos.rect_2d(world_position, 0.0, Vec2::new(16., 8.), color);
         }
         if keys.just_released(KeyCode::V) {
+            let mut rb = RigidBody::Dynamic;
+            let mut color = Color::rgb(1., 1., 1.);
+            if keys.pressed(KeyCode::ShiftLeft) {
+                rb = RigidBody::Fixed;
+                color = Color::rgb(0.5, 0.5, 1.);
+            }
             commands.spawn((
-                RigidBody::Dynamic,
+                rb,
                 SpriteBundle {
                     sprite: Sprite {
                         custom_size: Some(Vec2::new(8., 16.)),
-                        color: Color::rgb(1., 1., 1.),
+                        color,
                         ..default()
                     },
                     transform: Transform::from_translation(Vec3::new(
@@ -545,12 +549,18 @@ fn keyboard_input(
             ));
         }
         if keys.just_released(KeyCode::H) {
+            let mut rb = RigidBody::Dynamic;
+            let mut color = Color::rgb(1., 1., 1.);
+            if keys.pressed(KeyCode::ShiftLeft) {
+                rb = RigidBody::Fixed;
+                color = Color::rgb(0.5, 0.5, 1.);
+            }
             commands.spawn((
-                RigidBody::Dynamic,
+                rb,
                 SpriteBundle {
                     sprite: Sprite {
                         custom_size: Some(Vec2::new(16., 8.)),
-                        color: Color::rgb(1., 1., 1.),
+                        color,
                         ..default()
                     },
                     transform: Transform::from_translation(Vec3::new(
