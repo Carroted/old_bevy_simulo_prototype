@@ -763,6 +763,10 @@ fn keyboard_input(
                         world_anchor_b: world_position,
                         stiffness: 0.04,
                     },
+                            Sleeping {
+                                sleeping: false,
+                                ..Default::default()
+                            },
                         ));
 
                         // The collider closest to the point has this `handle`.
