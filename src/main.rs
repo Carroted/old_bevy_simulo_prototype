@@ -14,11 +14,12 @@ use bevy::{
 };
 use bevy_egui::egui::RichText;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_pancam::{PanCam, PanCamPlugin};
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 use bevy_rapier2d::rapier::dynamics::{RigidBodyHandle, RigidBodySet};
-use rand;
+use bevy_turborand::prelude::*;
 
 #[derive(Component)]
 struct MainCamera;
@@ -75,6 +76,7 @@ enum Tool {
     Drag,
     Rectangle,
     Circle,
+    Test,
 }
 
 #[derive(Resource)]
@@ -125,6 +127,11 @@ fn main() {
         .insert_resource(UIState {
             closed_welcome: false,
         })
+        .add_plugins(
+            (EmbeddedAssetPlugin {
+                mode: PluginMode::ReplaceDefault,
+            }),
+        )
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 resizable: true,
@@ -140,10 +147,12 @@ fn main() {
             }),
             ..Default::default()
         }))
+        .add_plugins(RngPlugin::default())
         .add_plugins(EguiPlugin)
         .add_plugins(ShapePlugin)
         .add_plugins(PanCamPlugin::default())
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(12.0))
+        //.add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(Update, simulate_springs)
         //.add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(LogDiagnosticsPlugin::default())
@@ -231,7 +240,7 @@ fn setup(
     ));
 
     // 1000 rigidbody boxes stacked on Y axis
-    for i in 0..50 {
+    /*for i in 0..50 {
         commands.spawn((
             SpriteBundle {
                 sprite: Sprite {
@@ -245,8 +254,8 @@ fn setup(
             Collider::cuboid(8.0, 2.0),
             RigidBody::Dynamic,
         ));
-    }
-
+    }*/
+    /*
     commands.spawn(MaterialMesh2dBundle {
         material: materials.add(MatterMaterial {
             color: Color::RED,
@@ -256,7 +265,7 @@ fn setup(
         }),
         transform: Transform::from_translation(Vec3::new(0., 10., 0.)),
         ..Default::default()
-    });
+    });*/
 }
 
 /*     getLocalPoint(bodyPosition: RAPIER.Vector2, bodyRotation: number, worldPoint: RAPIER.Vector2) {
@@ -338,13 +347,77 @@ fn ui_system(
         ui.radio_value(&mut tool_res.current_tool, Tool::Drag, "Drag");
         ui.radio_value(&mut tool_res.current_tool, Tool::Rectangle, "Rectangle");
         ui.radio_value(&mut tool_res.current_tool, Tool::Circle, "Circle");
+        ui.radio_value(&mut tool_res.current_tool, Tool::Test, "Test");
     });
+}
+
+fn spawn_person(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    color: Color,
+    world_position: Vec2,
+) {
+    let body = commands
+        .spawn((
+            RigidBody::Dynamic,
+            SpriteBundle {
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(6., 2.09941520468 * 6.)),
+                    color,
+                    ..default()
+                },
+                texture: asset_server.load("body.png"),
+                transform: Transform::from_translation(Vec3::new(
+                    world_position.x,
+                    world_position.y,
+                    0.,
+                )),
+                ..default()
+            },
+        ))
+        .with_children(|children| {
+            children.spawn((
+                Collider::round_cuboid(2.4, 2.1, 0.04),
+                Transform::from_translation(Vec3::new(0., -3.7, 0.)),
+            ));
+            children.spawn((
+                Collider::ball(2.9),
+                Transform::from_translation(Vec3::new(0., -1.8, 0.)),
+            ));
+        })
+        .id();
+
+    let joint = RevoluteJointBuilder::new()
+        .local_anchor1(Vec2::new(0.0, 1.8)) // anchor on body
+        .local_anchor2(Vec2::new(0.0, -2.5)); // anchor on head
+
+    // now the head, its circle of same radius 2.9. no head.png, we just circle.png like normal
+    commands.spawn((
+        RigidBody::Dynamic,
+        SpriteBundle {
+            sprite: Sprite {
+                custom_size: Some(Vec2::new(2.9 * 2., 2.9 * 2.)),
+                color,
+                ..default()
+            },
+            texture: asset_server.load("circle.png"),
+            transform: Transform::from_translation(Vec3::new(
+                world_position.x,
+                world_position.y + 2.09941520468 * 6. / 2. + 2.9 / 2.,
+                0.,
+            )),
+            ..default()
+        },
+        Collider::ball(2.9),
+        ImpulseJoint::new(body, joint),
+    ));
 }
 
 fn keyboard_input(
     mut commands: Commands,
     keys: Res<Input<KeyCode>>,
     rapier_context: Res<RapierContext>,
+    mut rapier_config: ResMut<RapierConfiguration>,
     mut gizmos: Gizmos,
     mut camera_query: Query<(
         &MainCamera,
@@ -380,6 +453,9 @@ fn keyboard_input(
         Without<RigidBody>,
         Without<DrawingRectangle>,
     )>,
+    mut global_rng: ResMut<GlobalRng>,
+    // asset server real
+    asset_server: Res<AssetServer>,
 ) {
     // There is only one primary window, so we can similarly get it from the query:
     let window = q_window.single();
@@ -400,6 +476,10 @@ fn keyboard_input(
         tool_res.current_tool = Tool::Rectangle;
     }
 
+    if keys.just_pressed(KeyCode::Space) {
+        rapier_config.physics_pipeline_active = !rapier_config.physics_pipeline_active;
+    }
+
     let current_tool = tool_res.current_tool;
 
     if buttons.just_released(MouseButton::Left) {
@@ -418,6 +498,79 @@ fn keyboard_input(
     {
         for (_, mut spring) in world_spring_query.iter_mut() {
             spring.world_anchor_b = world_position;
+        }
+        // e to spawn a person real
+        if keys.just_pressed(KeyCode::P) {
+            spawn_person(
+                &mut commands,
+                &asset_server,
+                Color::rgb(133. / 255., 243. / 255., 112. / 255.),
+                world_position,
+            );
+        }
+        if keys.pressed(KeyCode::V) {
+            gizmos.rect_2d(
+                world_position,
+                0.0,
+                Vec2::new(8., 16.),
+                Color::rgb(1., 1., 1.),
+            );
+        }
+        if keys.pressed(KeyCode::H) {
+            gizmos.rect_2d(
+                world_position,
+                0.0,
+                Vec2::new(16., 8.),
+                Color::rgb(1., 1., 1.),
+            );
+        }
+        if keys.just_released(KeyCode::V) {
+            commands.spawn((
+                RigidBody::Dynamic,
+                SpriteBundle {
+                    sprite: Sprite {
+                        custom_size: Some(Vec2::new(8., 16.)),
+                        color: Color::rgb(1., 1., 1.),
+                        ..default()
+                    },
+                    transform: Transform::from_translation(Vec3::new(
+                        world_position.x,
+                        world_position.y,
+                        0.,
+                    )),
+
+                    ..default()
+                },
+                Collider::cuboid(4., 8.),
+            ));
+        }
+        if keys.just_released(KeyCode::H) {
+            commands.spawn((
+                RigidBody::Dynamic,
+                SpriteBundle {
+                    sprite: Sprite {
+                        custom_size: Some(Vec2::new(16., 8.)),
+                        color: Color::rgb(1., 1., 1.),
+                        ..default()
+                    },
+                    transform: Transform::from_translation(Vec3::new(
+                        world_position.x,
+                        world_position.y,
+                        0.,
+                    )),
+
+                    ..default()
+                },
+                Collider::cuboid(8., 4.),
+            ));
+        }
+        if keys.just_pressed(KeyCode::M) {
+            spawn_person(
+                &mut commands,
+                &asset_server,
+                Color::rgb(232. / 255., 80. / 255., 74. / 255.),
+                world_position,
+            );
         }
         if buttons.pressed(MouseButton::Left) {
             if current_tool == Tool::Rectangle {
@@ -443,6 +596,28 @@ fn keyboard_input(
                         ..Default::default()
                     },
                 ));*/
+            }
+            // if its test, spam cubes
+            if current_tool == Tool::Test {
+                for _ in 0..5 {
+                    commands.spawn((
+                        SpriteBundle {
+                            sprite: Sprite {
+                                color: Color::rgb(0.75, 0.25, 0.25),
+                                custom_size: Some(Vec2::new(4., 4.)),
+                                ..default()
+                            },
+                            transform: Transform::from_translation(Vec3::new(
+                                world_position.x + global_rng.f32() * 30. - 15.,
+                                world_position.y + global_rng.f32() * 30. - 15.,
+                                0.00,
+                            )),
+                            ..default()
+                        },
+                        Collider::cuboid(2.0, 2.0),
+                        RigidBody::Dynamic,
+                    ));
+                }
             }
         }
         if buttons.just_released(MouseButton::Left) {
@@ -471,7 +646,7 @@ fn keyboard_input(
                 ent.remove::<Aabb>(); // force recalculation
             }
             // the the the
-            /*if current_tool == Tool::Circle {
+            if current_tool == Tool::Circle {
                 let (drawing_circle, mut sprite, entity, mut transform, _, _, _, _, _) =
                     drawing_circle_query.single_mut();
 
@@ -481,7 +656,7 @@ fn keyboard_input(
                 let height = (start.y - end.y);
                 let size = width.abs().max(height);
                 let mut center = (start + Vec2::new(size, size));
-                if 
+
                 sprite.custom_size = Some(Vec2::new(size / 2., size / 2.));
                 // same color but alpha 1
                 sprite.color =
@@ -492,7 +667,7 @@ fn keyboard_input(
                 // transform it up
                 transform.translation = Vec3::new(center.x, center.y, 0.);
                 ent.remove::<Aabb>(); // force recalculation
-            }*/
+            }
         }
         if buttons.just_pressed(MouseButton::Left) {
             if (current_tool == Tool::Rectangle) {
@@ -500,7 +675,12 @@ fn keyboard_input(
                 commands.spawn((
                     SpriteBundle {
                         sprite: Sprite {
-                            color: Color::rgba(rand::random(), rand::random(), rand::random(), 0.5),
+                            color: Color::rgba(
+                                global_rng.f32(),
+                                global_rng.f32(),
+                                global_rng.f32(),
+                                0.5,
+                            ),
                             custom_size: Some(Vec2::new(0., 0.)),
                             ..default()
                         },
@@ -521,10 +701,16 @@ fn keyboard_input(
                 commands.spawn((
                     SpriteBundle {
                         sprite: Sprite {
-                            color: Color::rgba(rand::random(), rand::random(), rand::random(), 0.5),
+                            color: Color::rgba(
+                                global_rng.f32(),
+                                global_rng.f32(),
+                                global_rng.f32(),
+                                0.5,
+                            ),
                             custom_size: Some(Vec2::new(0., 0.)),
                             ..default()
                         },
+                        texture: asset_server.load("circle.png"),
                         transform: Transform::from_translation(Vec3::new(
                             world_position.x,
                             world_position.y,
@@ -565,7 +751,7 @@ fn keyboard_input(
                                 world_position,
                             ),
                         world_anchor_b: world_position,
-                        stiffness: 0.02,
+                        stiffness: 0.04,
                     },
                         ));
 
