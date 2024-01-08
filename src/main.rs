@@ -46,6 +46,9 @@ struct WorldSpring {
     target_len: f32,
 }
 
+#[derive(Component)]
+struct LaserPointer;
+
 #[derive(AsBindGroup, Debug, Clone, Asset, TypePath)]
 pub struct MatterMaterial {
     #[uniform(0)]
@@ -120,9 +123,9 @@ fn main() {
     let mut app = App::new();
     app.insert_resource(Msaa::Sample4)
         .insert_resource(ClearColor(Color::rgb(
-            0.13333333333333333,
-            0.11764705882352941,
-            0.2901960784313726,
+            0.20392156862745098,
+            0.12941176470588237,
+            0.23921568627450981,
         )))
         .insert_resource(UIState {
             closed_welcome: false,
@@ -159,7 +162,8 @@ fn main() {
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
         .add_systems(Startup, setup)
         .add_systems(Update, ui_system)
-        .add_systems(Update, keyboard_input.in_set(EguiUnfocusedSystemSet));
+        .add_systems(Update, keyboard_input.in_set(EguiUnfocusedSystemSet))
+        .add_systems(Update, laser_pointer);
 
     app.init_resource::<EguiWantsFocus>()
         .add_systems(PostUpdate, check_egui_wants_focus)
@@ -199,7 +203,7 @@ fn setup(
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::rgb(0.6313725490196078, 0.6745098039215687, 0.9803921568627451),
+                color: Color::rgb(0.7254901960784313, 0.6313725490196078, 0.7686274509803922),
                 custom_size: Some(Vec2::new(10000.0, 1000.0)),
                 ..default()
             },
@@ -237,6 +241,22 @@ fn setup(
             left: Val::Px(8.0),
             ..default()
         }),
+    ));
+
+    // LaserPointer with a rigidbody cuboid
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: Color::rgb(0.25, 0.25, 0.75),
+                custom_size: Some(Vec2::new(16., 4.)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(0., 0., 0.00)),
+            ..default()
+        },
+        Collider::cuboid(8.0, 2.0),
+        RigidBody::Dynamic,
+        LaserPointer,
     ));
 
     // 1000 rigidbody boxes stacked on Y axis
@@ -504,7 +524,7 @@ fn keyboard_input(
             spawn_person(
                 &mut commands,
                 &asset_server,
-                Color::rgb(133. / 255., 243. / 255., 112. / 255.),
+                Color::rgb(0.6627450980392157, 0.7372549019607844, 0.4),
                 world_position,
             );
         }
@@ -913,7 +933,7 @@ fn simulate_springs(
 
         let force_a = f * -1.;
         let force_b = f;
-        /*
+
         let com = global_transform
             .transform_point(mass_props.local_center_of_mass.extend(0.))
             .truncate();
@@ -930,7 +950,7 @@ fn simulate_springs(
 
         gizmos.circle_2d(point_a_world, 0.8, Color::RED);
 
-        gizmos.circle_2d(point_b_world, 0.8, Color::BLUE);*/
+        gizmos.circle_2d(point_b_world, 0.8, Color::BLUE);
 
         // Figure out what impulse would be on the body if applied at certain point
         /*let new_impulse = ExternalImpulse::at_point(
@@ -950,5 +970,70 @@ fn simulate_springs(
                     .truncate(),
             force_a,
         ) / 250.;
+    }
+}
+
+// laser pointer system, we raycast and reflect only once
+fn laser_pointer(
+    mut commands: Commands,
+    mut laser_pointer_query: Query<(
+        &mut GlobalTransform,
+        &mut RigidBody,
+        &mut Sprite,
+        &mut ExternalImpulse,
+        &mut LaserPointer,
+    )>,
+    rapier_context: Res<RapierContext>,
+    mut gizmos: Gizmos,
+) {
+    for (mut transform, mut rigidbody, mut sprite, mut impulse, _) in laser_pointer_query.iter_mut()
+    {
+        // get the position of the laser pointer
+        let global_position = transform.translation().truncate();
+        // get the direction of the laser pointer
+        let up = transform.right().truncate();
+        let origin = global_position + up * 16.;
+        if let Some((entity, intersection)) =
+            rapier_context.cast_ray_and_get_normal(origin, up, 1000., true, QueryFilter::default())
+        {
+            let hit_point = intersection.point;
+            let hit_normal = intersection.normal;
+            // get new dir based on normal. normal points inward of object, we want to mirror our up with normal as the reflection axis
+            /* // Out of the material - flip the indices
+            dot = p2.vec2.dot(normal, direction);
+            var inAngle = Math.acos(dot);
+
+            var a = shapeIndex / airIndex * Math.sin(inAngle);
+            if(a <= 1){
+              outAngle = Math.asin(a);
+
+              // Construct new refracted direction - just rotate the negative normal
+              p2.vec2.rotate(out, normal, outAngle * (side < 0 ? 1 : -1));
+            } else {
+              p2.vec2.reflect(out, direction, normal);
+            } */
+            // the above codeblock is the logic we are using:
+
+            gizmos.line_2d(origin, hit_point, Color::RED); // everyone knows lasers are red
+                                                           // now one more
+            if let Some((entity, intersection)) = rapier_context.cast_ray_and_get_normal(
+                hit_point,
+                hit_normal,
+                1000.,
+                true,
+                QueryFilter::default(),
+            ) {
+                let hit_point = intersection.point;
+                let hit_normal = intersection.normal;
+                gizmos.line_2d(hit_point, hit_point + hit_normal * 1000., Color::GREEN);
+                // we did it.
+            } else {
+                // no hit, lets still draw the line
+                gizmos.line_2d(hit_point, hit_point + hit_normal * 1000., Color::GREEN);
+            }
+        } else {
+            // no hit, lets still draw the line
+            gizmos.line_2d(origin, origin + up * 1000., Color::RED);
+        }
     }
 }
