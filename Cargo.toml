@@ -11,8 +11,8 @@ bevy_egui = "0.23.0"
 bevy_embedded_assets = "0.9.1"
 bevy_pancam = { version = "0.10.0", features = ["bevy_egui"] }
 bevy_prototype_lyon = "0.10.0"
-bevy_rapier2d = "0.23.0"
 bevy_turborand = "0.7.0"
+bevy_liquidfun = { git = "https://github.com/Carroted/bevy_liquidfun.git" }
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
