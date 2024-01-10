@@ -15,10 +15,19 @@ use bevy::{
 use bevy_egui::egui::RichText;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
+extern crate bevy_liquidfun;
+use bevy_liquidfun::dynamics::{b2Body, b2BodyBundle, b2DistanceJoint, b2Fixture, b2FixtureDef};
+use bevy_liquidfun::particles::{
+    b2ParticleFlags, b2ParticleGroup, b2ParticleGroupDef, b2ParticleSystem, b2ParticleSystemDef,
+};
+use bevy_liquidfun::plugins::{LiquidFunDebugDrawPlugin, LiquidFunPlugin};
+use bevy_liquidfun::utils::{DebugDrawFixtures, DebugDrawParticleSystem};
+use bevy_liquidfun::{
+    collision::b2Shape,
+    dynamics::{b2BodyDef, b2BodyType::Dynamic, b2World},
+};
 use bevy_pancam::{PanCam, PanCamPlugin};
 use bevy_prototype_lyon::prelude::*;
-use bevy_rapier2d::prelude::*;
-use bevy_rapier2d::rapier::dynamics::{RigidBodyHandle, RigidBodySet};
 use bevy_turborand::prelude::*;
 
 #[derive(Component)]
@@ -28,47 +37,7 @@ struct MainCamera;
 struct Player;
 
 #[derive(Component)]
-struct MultiBodySpring {
-    body_b_rb: RigidBodyHandle,
-    local_anchor_a: Vec2,
-    local_anchor_b: Vec2,
-    stiffness: f32,
-    damping: f32,
-    target_len: f32,
-}
-
-#[derive(Component)]
-struct WorldSpring {
-    local_anchor_a: Vec2,
-    world_anchor_b: Vec2,
-    stiffness: f32,
-    damping: f32,
-    target_len: f32,
-}
-
-#[derive(Component)]
 struct LaserPointer;
-
-#[derive(AsBindGroup, Debug, Clone, Asset, TypePath)]
-pub struct MatterMaterial {
-    #[uniform(0)]
-    color: Color,
-    #[uniform(1)]
-    strokeColor: Color,
-    #[uniform(2)]
-    strokeWidth: f32,
-    #[texture(3)]
-    #[sampler(4)]
-    color_texture: Handle<Image>,
-}
-
-// All functions on `Material2d` have default impls. You only need to implement the
-// functions that are relevant for your material.
-impl Material2d for MatterMaterial {
-    fn fragment_shader() -> ShaderRef {
-        "shaders/matter.wgsl".into()
-    }
-}
 
 #[derive(Debug, Clone, Copy, SystemSet, PartialEq, Eq, Hash)]
 pub struct EguiUnfocusedSystemSet;
@@ -102,6 +71,9 @@ struct DrawingCircle {
     start: Vec2,
 }
 
+#[derive(Component)]
+struct DragSpring;
+
 #[derive(Resource, Deref, DerefMut, PartialEq, Eq, Default)]
 struct EguiWantsFocus(bool);
 
@@ -117,6 +89,12 @@ fn check_egui_wants_focus(
         false
     };
     wants_focus.set_if_neq(EguiWantsFocus(new_wants_focus));
+}
+
+fn setup_physics_world(world: &mut World) {
+    let gravity = Vec2::new(0., -9.81);
+    let b2_world = b2World::new(gravity);
+    world.insert_non_send_resource(b2_world);
 }
 
 fn main() {
@@ -154,16 +132,16 @@ fn main() {
         .add_plugins(EguiPlugin)
         .add_plugins(ShapePlugin)
         .add_plugins(PanCamPlugin::default())
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(12.0))
+        .add_plugins((LiquidFunPlugin::default(), LiquidFunDebugDrawPlugin))
         //.add_plugins(RapierDebugRenderPlugin::default())
-        .add_systems(Update, simulate_springs)
+        .add_systems(Startup, setup_physics_world)
         //.add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(LogDiagnosticsPlugin::default())
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
-        .add_systems(Startup, setup)
+        .add_systems(Startup, setup.after(setup_physics_world))
         .add_systems(Update, ui_system)
-        .add_systems(Update, keyboard_input.in_set(EguiUnfocusedSystemSet))
-        .add_systems(Update, laser_pointer);
+        .add_systems(Update, keyboard_input.in_set(EguiUnfocusedSystemSet));
+    //.add_systems(Update, laser_pointer);
 
     app.init_resource::<EguiWantsFocus>()
         .add_systems(PostUpdate, check_egui_wants_focus)
@@ -172,17 +150,10 @@ fn main() {
             EguiUnfocusedSystemSet.run_if(resource_equals(EguiWantsFocus(false))),
         );
 
-    // matter material
-    app.init_asset::<MatterMaterial>();
-
     app.run();
 }
 
-fn setup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut materials: ResMut<Assets<MatterMaterial>>,
-) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(Tools {
         current_tool: Tool::Drag,
     });
@@ -199,7 +170,7 @@ fn setup(
             ..Default::default()
         });
 
-    /* Create the ground. */
+    /* Create the ground.
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
@@ -211,7 +182,25 @@ fn setup(
             ..default()
         },
         Collider::cuboid(5000.0, 500.0),
-    ));
+    ));*/
+
+    let ground_entity = commands
+        .spawn(b2BodyBundle {
+            transform: TransformBundle {
+                local: Transform::from_translation(Vec3::new(0., -1000., 0.)),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .id();
+    {
+        let box_shape = b2Shape::create_box(5000.0, 500.0);
+        let fixture_def = b2FixtureDef::new(box_shape, 0.5);
+        commands.spawn((
+            b2Fixture::new(ground_entity, &fixture_def),
+            DebugDrawFixtures::default_dynamic(),
+        ));
+    }
 
     const VERSION: &str = env!("CARGO_PKG_VERSION");
     #[cfg(target_arch = "wasm32")]
@@ -244,7 +233,7 @@ fn setup(
     ));
 
     // LaserPointer with a rigidbody cuboid
-    commands.spawn((
+    /*commands.spawn((
         SpriteBundle {
             sprite: Sprite {
                 color: Color::rgb(0.25, 0.25, 0.75),
@@ -257,9 +246,9 @@ fn setup(
         Collider::cuboid(8.0, 2.0),
         RigidBody::Dynamic,
         LaserPointer,
-    ));
+    ));*/
 
-    // 1000 rigidbody boxes stacked on Y axis
+    // 1000 rigidbody boxes (rigidboxes if you will) stacked on Y axis
     /*for i in 0..50 {
         commands.spawn((
             SpriteBundle {
@@ -436,8 +425,7 @@ fn spawn_person(
 fn keyboard_input(
     mut commands: Commands,
     keys: Res<Input<KeyCode>>,
-    rapier_context: Res<RapierContext>,
-    mut rapier_config: ResMut<RapierConfiguration>,
+    mut b2_world: NonSendMut<b2World>,
     mut gizmos: Gizmos,
     mut camera_query: Query<(
         &MainCamera,
@@ -447,30 +435,28 @@ fn keyboard_input(
         &Camera,
         Without<Player>,
     )>,
-    transforms_query: Query<(&Transform, Without<MainCamera>, &RigidBody)>,
+    transforms_query: Query<(&Transform, Without<MainCamera>, &b2Body)>,
     buttons: Res<Input<MouseButton>>,
     q_window: Query<&Window, With<PrimaryWindow>>,
-    mut world_spring_query: Query<(Entity, &mut WorldSpring)>,
+    mut drag_spring_query: Query<(Entity, &mut DragSpring, &mut b2DistanceJoint)>,
     mut tool_res: ResMut<Tools>,
     mut drawing_rectangle_query: Query<(
         &DrawingRectangle,
         &mut Sprite,
         Entity,
         &mut Transform,
-        Without<WorldSpring>,
-        Without<MultiBodySpring>,
+        Without<DragSpring>,
         Without<MainCamera>,
-        Without<RigidBody>,
+        Without<b2Body>,
     )>,
     mut drawing_circle_query: Query<(
         &DrawingCircle,
         &mut Sprite,
         Entity,
         &mut Transform,
-        Without<WorldSpring>,
-        Without<MultiBodySpring>,
+        Without<DragSpring>,
         Without<MainCamera>,
-        Without<RigidBody>,
+        Without<b2Body>,
         Without<DrawingRectangle>,
     )>,
     mut global_rng: ResMut<GlobalRng>,
@@ -497,15 +483,20 @@ fn keyboard_input(
     }
 
     if keys.just_pressed(KeyCode::Space) {
-        rapier_config.physics_pipeline_active = !rapier_config.physics_pipeline_active;
+        // ternary to toggle antigravity
+        b2_world.gravity = if b2_world.gravity.y == 0. {
+            Vec2::new(0., -9.81)
+        } else {
+            Vec2::new(0., 0.)
+        };
     }
 
     let current_tool = tool_res.current_tool;
 
     if buttons.just_released(MouseButton::Left) {
         // remove all springs
-        for (entity, mut spring) in world_spring_query.iter_mut() {
-            commands.entity(entity).remove::<WorldSpring>();
+        for (entity, mut spring) in drag_spring_query.iter_mut() {
+            commands.entity(entity).remove::<DragSpring>();
         }
     }
 
@@ -516,8 +507,8 @@ fn keyboard_input(
         .and_then(|cursor| camera.4.viewport_to_world(camera.3, cursor))
         .map(|ray| ray.origin.truncate())
     {
-        for (_, mut spring) in world_spring_query.iter_mut() {
-            spring.world_anchor_b = world_position;
+        for (_, mut spring, mut distance_joint) in drag_spring_query.iter_mut() {
+            distance_joint. = world_position;
         }
         // e to spawn a person real
         if keys.just_pressed(KeyCode::P) {

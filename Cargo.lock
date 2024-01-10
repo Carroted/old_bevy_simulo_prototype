@@ -868,7 +868,7 @@ dependencies = [
 [[package]]
 name = "bevy_liquidfun"
 version = "0.1.0"
-source = "git+https://github.com/Carroted/bevy_liquidfun.git#35a645816db90289d5f831890fa555f309a8bbce"
+source = "git+https://github.com/Carroted/bevy_liquidfun.git#0a331e9f6ff6c7be3133107cc19cdaf658343f9a"
 dependencies = [
  "autocxx",
  "bevy",
