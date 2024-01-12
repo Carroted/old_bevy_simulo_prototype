@@ -16,7 +16,7 @@ use bevy_egui::egui::RichText;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 extern crate bevy_liquidfun;
-use bevy_liquidfun::dynamics::{b2Body, b2BodyBundle, b2Fixture, b2FixtureDef};
+use bevy_liquidfun::dynamics::{b2Body, b2BodyBundle, b2Fixture, b2FixtureDef, b2DistanceJoint, b2BodyType};
 use bevy_liquidfun::particles::{
     b2ParticleFlags, b2ParticleGroup, b2ParticleGroupDef, b2ParticleSystem, b2ParticleSystemDef,
 };
@@ -73,6 +73,9 @@ struct DrawingCircle {
 
 #[derive(Component)]
 struct DragSpring;
+
+#[derive(Component)]
+struct GroundBody;
 
 #[derive(Resource, Deref, DerefMut, PartialEq, Eq, Default)]
 struct EguiWantsFocus(bool);
@@ -201,6 +204,17 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             DebugDrawFixtures::default_dynamic(),
         ));
     }
+
+    // ground body is not to be confused with the ground, this is a static body that we will use for springs and stuff
+    let ground_body = commands
+    .spawn((b2BodyBundle {
+        transform: TransformBundle {
+            local: Transform::from_translation(Vec3::new(0., 0., 0.)),
+            ..Default::default()
+        },
+        ..Default::default()
+    }, GroundBody))
+    .id();
 
     const VERSION: &str = env!("CARGO_PKG_VERSION");
     #[cfg(target_arch = "wasm32")]
@@ -462,6 +476,7 @@ fn keyboard_input(
     mut global_rng: ResMut<GlobalRng>,
     // asset server real
     asset_server: Res<AssetServer>,
+    mut ground_body: Query<(&GroundBody, &mut Transform, Without<Sprite>, Without<DragSpring>)>
 ) {
     // There is only one primary window, so we can similarly get it from the query:
     let window = q_window.single();
@@ -495,7 +510,7 @@ fn keyboard_input(
 
     if buttons.just_released(MouseButton::Left) {
         // remove all springs
-        for (entity, mut spring) in drag_spring_query.iter_mut() {
+        for (entity, mut spring, _) in drag_spring_query.iter_mut() {
             commands.entity(entity).remove::<DragSpring>();
         }
     }
@@ -507,9 +522,10 @@ fn keyboard_input(
         .and_then(|cursor| camera.4.viewport_to_world(camera.3, cursor))
         .map(|ray| ray.origin.truncate())
     {
-        for (_, mut spring, mut distance_joint) in drag_spring_query.iter_mut() {
-            distance_joint. = world_position;
-        }
+        //for (_, mut spring, mut distance_joint) in drag_spring_query.iter_mut() {
+        //    distance_joint. = world_position;
+        //}
+        ground_body.single_mut().1.translation = world_position.extend(0.);
         // e to spawn a person real
         if keys.just_pressed(KeyCode::P) {
             spawn_person(
@@ -519,6 +535,7 @@ fn keyboard_input(
                 world_position,
             );
         }
+        /*
         if keys.pressed(KeyCode::V) {
             let mut color = Color::rgb(1., 1., 1.);
             if keys.pressed(KeyCode::ShiftLeft) {
@@ -592,7 +609,7 @@ fn keyboard_input(
                 Color::rgb(232. / 255., 80. / 255., 74. / 255.),
                 world_position,
             );
-        }
+        }*/
         if buttons.pressed(MouseButton::Left) {
             if current_tool == Tool::Rectangle {
                 // Left button was pressed, lets spawn cube at mouse
@@ -620,6 +637,7 @@ fn keyboard_input(
             }
             // if its test, spam cubes
             if current_tool == Tool::Test {
+                /*
                 for _ in 0..5 {
                     commands.spawn((
                         SpriteBundle {
@@ -638,13 +656,13 @@ fn keyboard_input(
                         Collider::cuboid(2.0, 2.0),
                         RigidBody::Dynamic,
                     ));
-                }
+                }*/
             }
         }
         if buttons.just_released(MouseButton::Left) {
             if current_tool == Tool::Rectangle {
                 // query time
-                let (drawing_rectangle, mut sprite, entity, mut transform, _, _, _, _) =
+                /*let (drawing_rectangle, mut sprite, entity, mut transform, _, _, _, _) =
                     drawing_rectangle_query.single_mut();
                 let start = drawing_rectangle.start;
                 let end = world_position;
@@ -664,11 +682,11 @@ fn keyboard_input(
                 ));
                 // transform it up
                 transform.translation = Vec3::new(center.x, center.y, 0.);
-                ent.remove::<Aabb>(); // force recalculation
+                ent.remove::<Aabb>(); // force recalculation*/
             }
             // the the the
             if current_tool == Tool::Circle {
-                let (drawing_circle, mut sprite, entity, mut transform, _, _, _, _, _) =
+                /*let (drawing_circle, mut sprite, entity, mut transform, _, _, _, _, _) =
                     drawing_circle_query.single_mut();
 
                 let start = drawing_circle.start;
@@ -687,12 +705,12 @@ fn keyboard_input(
                 ent.insert((Collider::ball(size / 2.), RigidBody::Dynamic));
                 // transform it up
                 transform.translation = Vec3::new(center.x, center.y, 0.);
-                ent.remove::<Aabb>(); // force recalculation
+                ent.remove::<Aabb>(); // force recalculation*/
             }
         }
         if buttons.just_pressed(MouseButton::Left) {
             if (current_tool == Tool::Rectangle) {
-                // spawn just a display of a transparent rectangle with 0 size, no collider or rb or anything, when mouse moves, update the size, when mouse is released, spawn the actual thing
+                /*// spawn just a display of a transparent rectangle with 0 size, no collider or rb or anything, when mouse moves, update the size, when mouse is released, spawn the actual thing
                 commands.spawn((
                     SpriteBundle {
                         sprite: Sprite {
@@ -715,10 +733,10 @@ fn keyboard_input(
                     DrawingRectangle {
                         start: world_position,
                     },
-                ));
+                ));*/
             }
             if (current_tool == Tool::Circle) {
-                // spawn just a display of a transparent circle with 0 size, no collider or rb or anything, when mouse moves, update the size, when mouse is released, spawn the actual thing
+                /*// spawn just a display of a transparent circle with 0 size, no collider or rb or anything, when mouse moves, update the size, when mouse is released, spawn the actual thing
                 commands.spawn((
                     SpriteBundle {
                         sprite: Sprite {
@@ -742,9 +760,11 @@ fn keyboard_input(
                     DrawingCircle {
                         start: world_position,
                     },
-                ));
+                ));*/
             }
             if current_tool == Tool::Drag {
+                let aabb = b2A
+                b2_world
                 let solid = true;
                 let filter = QueryFilter::default();
                 if let Some((entity, projection)) =
