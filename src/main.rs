@@ -16,7 +16,7 @@ use bevy_egui::egui::RichText;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 extern crate bevy_liquidfun;
-use bevy_liquidfun::dynamics::{b2Body, b2BodyBundle, b2DistanceJoint, b2Fixture, b2FixtureDef};
+use bevy_liquidfun::dynamics::{b2Body, b2BodyBundle, b2Fixture, b2FixtureDef};
 use bevy_liquidfun::particles::{
     b2ParticleFlags, b2ParticleGroup, b2ParticleGroupDef, b2ParticleSystem, b2ParticleSystemDef,
 };
