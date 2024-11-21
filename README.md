@@ -5,6 +5,10 @@ Welcome to Simulo, also known as Bevyulo, a 2D physics sandbox in Rust using the
 > [!WARNING]
 > This project is still in early development. Expect bugs and missing features.
 
+## Context
+
+Over the years, Simulo has been remade several times in different languages and frameworks. It started out as a Box2D Unity game, then it became a LiquidFun web game in a custom engine, then it became a Rapier web game in another custom engine, and now it's a LiquidFun game in Bevy.
+
 ## Getting Started
 
 ### Prerequisites
